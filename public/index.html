@@ -121,6 +121,9 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 .options select{width:auto;padding:8px}
 .footer{text-align:center;padding:18px;color:#9aa9b9;font-size:9px}
 
+
+.tornado-risk-marker{border:2px solid #fff;border-radius:50%;box-shadow:0 1px 7px #182b45aa}
+.tornado-risk-label{font: bold 9px Arial,sans-serif;color:#fff;text-shadow:0 1px 3px #000,1px 0 3px #000;text-align:center;white-space:nowrap}
 .radar-station-icon{background:transparent;border:0;text-align:center;font-size:23px;line-height:30px;filter:drop-shadow(0 1px 2px #fff)}
 /* RAIOS E RELÂMPAGOS */
 .lightning-marker{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 7px #182b45aa;font-size:17px;line-height:1;color:#fff}
@@ -128,6 +131,15 @@ input[type=range]{width:100%;accent-color:var(--blue)}
 .lightning-legend span{display:inline-flex;align-items:center;gap:3px}
 .lightning-dot{width:9px;height:9px;border-radius:50%;display:inline-block;border:1px solid #0002}
 .lightning-status{font-size:10px;line-height:1.5;color:#647b95;margin-top:8px}
+
+/* TSC / STSC - ocorrências de tempo severo convectivo */
+.stsc-status{font-size:10px;line-height:1.5;color:#647b95;margin-top:8px;overflow-wrap:anywhere}
+.stsc-controls{display:flex;gap:7px;margin-top:9px}
+.stsc-controls button{flex:1}
+.stsc-meta{display:flex;justify-content:space-between;gap:8px;font-size:9px;color:#71849b;margin-top:7px}
+.stsc-legend{display:flex;gap:10px;flex-wrap:wrap;font-size:9px;color:#647b95;margin-top:8px}
+.stsc-legend span{display:inline-flex;align-items:center;gap:4px}
+.stsc-legend i{width:9px;height:9px;border-radius:50%;display:inline-block}
 
 .radar-station-label{font-size:10px;font-weight:bold;color:#19304b;background:rgba(255,255,255,.9);border:1px solid #dce7f4;border-radius:6px;padding:3px 5px;white-space:nowrap}
 
@@ -298,6 +310,17 @@ header{padding:0 12px}
 .side{grid-template-columns:1fr}
 .side .panel:last-child{grid-column:auto}
 }
+
+.forecast-time-controls{display:flex;align-items:center;gap:7px;margin-top:10px}
+.forecast-time-controls input{flex:1;min-width:0}
+.forecast-time-controls button{padding:7px 10px}
+.forecast-selected-time{font-size:11px;font-weight:700;color:#1c6ec4;margin:7px 0}
+.forecast-table-wrap{max-height:260px;overflow:auto;border:1px solid #dce3ec;border-radius:7px;margin-top:7px}
+.forecast-table{width:100%;border-collapse:collapse;font-size:10px}
+.forecast-table th,.forecast-table td{padding:7px 5px;text-align:center;border-bottom:1px solid #e5eaf0;white-space:nowrap}
+.forecast-table th{position:sticky;top:0;background:#edf2f8;color:#35465b;z-index:1}
+.forecast-table tr.selected{background:#e5f1ff;font-weight:700}
+.forecast-table td:first-child{text-align:left}
 </style>
 </head>
 
@@ -408,6 +431,86 @@ Toque em qualquer local do mapa para medir a distância em linha reta a partir d
 <div class="lightning-status" id="lightningStatus">Camada desligada. Fonte prevista: GOES-19 GLM.</div>
 </section>
 
+<section class="panel" id="stormForecastPanel">
+<h3>PREVISÃO DE TEMPESTADES</h3>
+<div class="info">Campo de potencial convectivo previsto pelo GFS, combinando CAPE, precipitação convectiva e códigos de tempo significativo. Não representa rastreamento de células observadas.</div>
+<button class="primary" id="stormForecastToggle" style="width:100%;margin-top:10px" onclick="toggleForecastProduct('storms')">ATIVAR PREVISÃO DE TEMPESTADES</button>
+<div class="stsc-status" id="stormForecastStatus">Produto desligado.</div>
+<div class="forecast-time-controls">
+ <button class="secondary" onclick="shiftForecastHour('storms',-1)">◀</button>
+ <input type="range" id="stormsForecastHour" min="0" max="47" value="0" step="1" oninput="renderForecastHour('storms',this.value)" disabled>
+ <button class="secondary" onclick="shiftForecastHour('storms',1)">▶</button>
+</div>
+<div class="forecast-selected-time" id="stormsForecastSelectedTime">Aguardando dados horários</div>
+<div class="forecast-table-wrap"><table class="forecast-table"><thead><tr><th>HORÁRIO</th><th>POTENCIAL</th><th>CAPE</th><th>CHUVA CONV.</th></tr></thead><tbody id="stormsForecastRows"><tr><td colspan="4">Ative o produto para carregar a previsão.</td></tr></tbody></table></div>
+<div class="stsc-legend" style="flex-wrap:wrap">
+ <span><i style="background:#42a66b"></i>Baixo</span>
+ <span><i style="background:#e6c52e"></i>Moderado</span>
+ <span><i style="background:#ed8b2c"></i>Alto</span>
+ <span><i style="background:#d93434"></i>Muito alto</span>
+</div>
+<button class="secondary" style="width:100%;margin-top:8px" onclick="refreshForecastProduct('storms')">ATUALIZAR PREVISÃO</button>
+</section>
+
+<section class="panel" id="extremeRainPanel">
+<h3>PREVISÃO DE CHUVA EXTREMA</h3>
+<div class="info">Precipitação horária prevista pelo GFS, interpolada em campo contínuo. Os limiares indicam intensidade da chuva, não risco de inundação.</div>
+<button class="primary" id="extremeRainToggle" style="width:100%;margin-top:10px" onclick="toggleForecastProduct('rain')">ATIVAR PREVISÃO DE CHUVA EXTREMA</button>
+<div class="stsc-status" id="extremeRainStatus">Produto desligado.</div>
+<div class="forecast-time-controls">
+ <button class="secondary" onclick="shiftForecastHour('rain',-1)">◀</button>
+ <input type="range" id="rainForecastHour" min="0" max="47" value="0" step="1" oninput="renderForecastHour('rain',this.value)" disabled>
+ <button class="secondary" onclick="shiftForecastHour('rain',1)">▶</button>
+</div>
+<div class="forecast-selected-time" id="rainForecastSelectedTime">Aguardando dados horários</div>
+<div class="forecast-table-wrap"><table class="forecast-table"><thead><tr><th>HORÁRIO</th><th>CHUVA mm/h</th><th>ACUM. 3h</th><th>ACUM. 6h</th><th>ACUM. 24h</th></tr></thead><tbody id="rainForecastRows"><tr><td colspan="5">Ative o produto para carregar a previsão.</td></tr></tbody></table></div>
+<div class="stsc-legend" style="flex-wrap:wrap">
+ <span><i style="background:#42a66b"></i>Fraca</span>
+ <span><i style="background:#e6c52e"></i>Moderada</span>
+ <span><i style="background:#ed8b2c"></i>Forte</span>
+ <span><i style="background:#d93434"></i>Extrema</span>
+</div>
+<button class="secondary" style="width:100%;margin-top:8px" onclick="refreshForecastProduct('rain')">ATUALIZAR PREVISÃO</button>
+</section>
+
+<section class="panel" id="tornadoRiskPanel">
+<h3>RISCO AMBIENTAL DE TORNADO</h3>
+<div class="info">Estimativa experimental baseada em CAPE, inibição convectiva, cisalhamento do vento e nível de condensação. Não é probabilidade de tornado nem alerta oficial.</div>
+<button class="primary" id="tornadoRiskToggle" style="width:100%;margin-top:10px" onclick="toggleTornadoRisk()">ATIVAR RISCO NA ÁREA DO MAPA</button>
+<div class="stsc-status" id="tornadoRiskStatus">Camada desligada. Ative para consultar os campos atmosféricos do modelo GFS.</div>
+<div class="stsc-legend" style="flex-wrap:wrap">
+ <span><i style="background:#42a66b"></i>Baixo</span>
+ <span><i style="background:#e6c52e"></i>Marginal</span>
+ <span><i style="background:#ed8b2c"></i>Elevado</span>
+ <span><i style="background:#d93434"></i>Muito elevado</span>
+</div>
+<div class="info" id="tornadoRiskDetails" style="margin-top:9px">Campo contínuo interpolado a partir de pontos do modelo. Não representa ocorrência confirmada.</div>
+<button class="secondary" style="width:100%;margin-top:8px" onclick="refreshTornadoRisk()">ATUALIZAR ANÁLISE</button>
+</section>
+
+<section class="panel">
+<h3>TSC · TEMPO SEVERO CONVECTIVO</h3>
+<div class="info">Ocorrências convectivas do STSC/REDEMET. O histórico é exibido simultaneamente: azul para registros antigos e vermelho para os mais recentes.</div>
+<button class="primary" id="stscToggle" style="width:100%;margin-top:10px" onclick="toggleSTSC()">ATIVAR TSC</button>
+<div class="stsc-controls">
+ <button class="secondary" onclick="refreshSTSC(true)">ATUALIZAR</button>
+ <button class="secondary" onclick="stepSTSCFrame(-1)">MENOS HISTÓRICO</button>
+ <button class="secondary" onclick="stepSTSCFrame(1)">MAIS HISTÓRICO</button>
+</div>
+<label>OPACIDADE DO TSC</label>
+<input type="range" id="stscOpacity" min="10" max="100" value="75">
+<input class="timeline" id="stscTimeline" type="range" min="0" max="0" value="0" disabled>
+<div class="stsc-meta">
+ <span id="stscTime">Aguardando dados</span>
+ <span id="stscFrameNumber">0 / 0</span>
+</div>
+<div class="stsc-legend">
+ <span><i style="background:#2864c5"></i>Antiga</span>
+ <span><i style="background:#e33434"></i>Recente</span>
+</div>
+<div class="stsc-status" id="stscStatus">Camada desligada. Fonte: REDEMET/DECEA.</div>
+</section>
+
 </aside>
 </div>
 
@@ -478,6 +581,7 @@ Toque em qualquer local do mapa para medir a distância em linha reta a partir d
 <button id="menu-07km" onclick="selectProduct('07km');closeEconomyMenu()">REFLECTIVIDADE 7 KM</button>
 <button id="menu-05km" onclick="selectProduct('05km');closeEconomyMenu()">REFLECTIVIDADE 5 KM</button>
 <button id="menu-infrared" onclick="selectProduct('infrared');closeEconomyMenu()">SATÉLITE INFRAVERMELHO REALÇADO</button>
+<button id="menu-stsc" onclick="toggleSTSC();closeEconomyMenu()">ATIVAR / DESATIVAR TSC</button>
 <hr style="border:0;border-top:1px solid #e7edf5;margin:10px 0">
 <button class="secondary" onclick="toggleEconomy()">SAIR DO MODO ECONOMIA</button>
 <button class="secondary" onclick="requestLocation()">MINHA LOCALIZAÇÃO</button>
@@ -524,6 +628,17 @@ let lightningRequest=null;
 let lightningLastSignature="";
 const lightningCanvas=L.canvas({padding:0.5});
 
+// Sistema de Tempo Severo Convectivo (STSC) da REDEMET/DECEA.
+const STSC_API="https://api-redemet.decea.mil.br/produtos/stsc";
+const STSC_ANIMATION_FRAMES=15; // A API aceita até 60 quadros.
+let stscEnabled=false;
+let stscTimer=null;
+let stscRequest=null;
+let stscGroup=L.layerGroup();
+let stscFrames=[];
+let stscCurrentFrame=0;
+let stscLastSignature="";
+
 // ============================================
 // MAPA
 // ============================================
@@ -541,6 +656,380 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
 
 const radarGroup=L.layerGroup().addTo(map);
 radarStationGroup.addTo(map);
+
+// ============================================
+// INDICADOR EXPERIMENTAL DE AMBIENTE FAVORÁVEL A TORNADOS
+// Fonte: Open-Meteo GFS. Não representa probabilidade nem alerta oficial.
+// ============================================
+let tornadoRiskEnabled=false;
+let tornadoRiskBusy=false;
+let tornadoRiskLayer=L.layerGroup();
+let tornadoRiskAbort=null;
+let tornadoRiskLastRun=0;
+const TORNADO_RISK_API="https://api.open-meteo.com/v1/gfs";
+
+function tornadoWindVector(speedKmh,directionDeg){
+ const speed=Number(speedKmh)/3.6;
+ const direction=Number(directionDeg)*Math.PI/180;
+ if(!Number.isFinite(speed)||!Number.isFinite(direction))return null;
+ // Componentes meteorológicos: direção indica de onde o vento sopra.
+ return {u:-speed*Math.sin(direction),v:-speed*Math.cos(direction)};
+}
+function tornadoVectorShear(s1,d1,s2,d2){
+ const a=tornadoWindVector(s1,d1),b=tornadoWindVector(s2,d2);
+ if(!a||!b)return null;
+ return Math.hypot(b.u-a.u,b.v-a.v);
+}
+function tornadoLCL(tempC,dewC){
+ const spread=Number(tempC)-Number(dewC);
+ if(!Number.isFinite(spread))return null;
+ return Math.max(0,125*spread); // aproximação empírica em metros AGL
+}
+function tornadoRiskAssessment(data,index){
+ const h=data.hourly||{};
+ const get=k=>Number(h[k]?.[index]);
+ const cape=get("cape");
+ const cin=get("convective_inhibition");
+ const temp=get("temperature_2m");
+ const dew=get("dew_point_2m");
+ const shear06=tornadoVectorShear(
+  get("wind_speed_10m"),get("wind_direction_10m"),
+  get("wind_speed_500hPa"),get("wind_direction_500hPa")
+ );
+ const shear01=tornadoVectorShear(
+  get("wind_speed_10m"),get("wind_direction_10m"),
+  get("wind_speed_925hPa"),get("wind_direction_925hPa")
+ );
+ const lcl=tornadoLCL(temp,dew);
+ if(![cape,cin,temp,dew].every(Number.isFinite)||shear06===null||shear01===null){
+  return {level:"Indisponível",color:"#78889a",score:null,cape,shear06,shear01,lcl,cin};
+ }
+
+ // Escore heurístico transparente, não validado operacionalmente.
+ let score=0;
+ if(cape>=500)score+=1;
+ if(cape>=1000)score+=1;
+ if(cape>=2000)score+=1;
+ if(cin>=-100)score+=1;
+ if(shear06>=20)score+=1;
+ if(shear06>=30)score+=1;
+ if(shear01>=10)score+=1;
+ if(lcl!==null&&lcl<=1000)score+=1;
+
+ let level="Baixo",color="#42a66b";
+ if(score>=3){level="Marginal";color="#e6c52e";}
+ if(score>=5){level="Elevado";color="#ed8b2c";}
+ if(score>=7){level="Muito elevado";color="#d93434";}
+ // Sem instabilidade, não elevar o risco apenas pelo vento.
+ if(cape<100||cin< -250){level="Baixo";color="#42a66b";score=Math.min(score,1);}
+ return {level,color,score,cape,shear06,shear01,lcl,cin};
+}
+function tornadoGridPoints(){
+ const b=map.getBounds();
+ const south=Math.max(-55,b.getSouth()),north=Math.min(12,b.getNorth());
+ const west=Math.max(-82,b.getWest()),east=Math.min(-28,b.getEast());
+ const rows=5,cols=5,points=[];
+ for(let y=0;y<rows;y++){
+  const lat=south+(north-south)*(rows===1?0.5:y/(rows-1));
+  for(let x=0;x<cols;x++){
+   const lon=west+(east-west)*(cols===1?0.5:x/(cols-1));
+   points.push({lat,lon});
+  }
+ }
+ return points;
+}
+function tornadoNearestHour(times){
+ const now=Date.now();
+ let best=0,bestDiff=Infinity;
+ times.forEach((t,i)=>{
+  const diff=Math.abs(new Date(t).getTime()-now);
+  if(Number.isFinite(diff)&&diff<bestDiff){best=i;bestDiff=diff;}
+ });
+ return best;
+}
+
+function tornadoRiskColor(value){
+ const stops=[
+  {v:0,c:[42,166,107]},
+  {v:2,c:[230,197,46]},
+  {v:4,c:[237,139,44]},
+  {v:6,c:[217,52,52]},
+  {v:8,c:[135,25,45]}
+ ];
+ const v=Math.max(0,Math.min(8,value));
+ let a=stops[0],b=stops[stops.length-1];
+ for(let i=0;i<stops.length-1;i++){
+  if(v>=stops[i].v&&v<=stops[i+1].v){a=stops[i];b=stops[i+1];break;}
+ }
+ const t=(v-a.v)/(b.v-a.v||1);
+ return a.c.map((n,i)=>Math.round(n+(b.c[i]-n)*t));
+}
+function tornadoSmoothField(points,assessments){
+ const valid=points.map((p,i)=>({x:i%5,y:Math.floor(i/5),score:assessments[i]?.score}))
+  .filter(p=>Number.isFinite(p.score));
+ if(valid.length<4)throw new Error("Dados insuficientes para interpolar o campo meteorológico.");
+ const canvas=document.createElement("canvas");
+ const size=512;
+ canvas.width=size;canvas.height=size;
+ const ctx=canvas.getContext("2d");
+ const image=ctx.createImageData(size,size);
+ const data=image.data;
+ // Interpolação IDW em grade regular: suaviza o campo sem desenhar marcadores.
+ for(let py=0;py<size;py++){
+  const gy=(py/(size-1))*4;
+  for(let px=0;px<size;px++){
+   const gx=(px/(size-1))*4;
+   let weighted=0,total=0,nearest=Infinity;
+   for(const p of valid){
+    const d2=(gx-p.x)**2+(gy-p.y)**2;
+    if(d2<1e-8){weighted=p.score;total=1;nearest=0;break;}
+    const w=1/(d2*d2);
+    weighted+=p.score*w;total+=w;
+    if(d2<nearest)nearest=d2;
+   }
+   const value=weighted/total;
+   const [r,g,b]=tornadoRiskColor(value);
+   const k=(py*size+px)*4;
+   data[k]=r;data[k+1]=g;data[k+2]=b;
+   // Feathered transparency keeps the raster from looking like a solid opaque sheet.
+   const edge=Math.min(gx,4-gx,gy,4-gy);
+   const edgeFade=Math.max(0,Math.min(1,edge/0.22));
+   data[k+3]=Math.round(150*edgeFade);
+  }
+ }
+ ctx.putImageData(image,0,0);
+ return canvas.toDataURL("image/png");
+}
+
+async function refreshTornadoRisk(){
+ if(!tornadoRiskEnabled||tornadoRiskBusy)return;
+ tornadoRiskBusy=true;
+ const status=document.getElementById("tornadoRiskStatus");
+ status.textContent="Consultando GFS e interpolando o campo de risco...";
+ if(tornadoRiskAbort)tornadoRiskAbort.abort();
+ tornadoRiskAbort=new AbortController();
+ const points=tornadoGridPoints();
+ const latitudes=points.map(p=>p.lat.toFixed(3)).join(",");
+ const longitudes=points.map(p=>p.lon.toFixed(3)).join(",");
+ const hourly=[
+  "cape","convective_inhibition","temperature_2m","dew_point_2m",
+  "wind_speed_10m","wind_direction_10m",
+  "wind_speed_925hPa","wind_direction_925hPa",
+  "wind_speed_500hPa","wind_direction_500hPa"
+ ].join(",");
+ const url=`${TORNADO_RISK_API}?latitude=${encodeURIComponent(latitudes)}&longitude=${encodeURIComponent(longitudes)}&hourly=${hourly}&forecast_days=2&timezone=auto&wind_speed_unit=kmh`;
+ try{
+  const response=await fetch(url,{signal:tornadoRiskAbort.signal,cache:"no-store"});
+  if(!response.ok)throw new Error(`Open-Meteo HTTP ${response.status}`);
+  const result=await response.json();
+  const datasets=Array.isArray(result)?result:[result];
+  if(!datasets.length)throw new Error("O modelo não retornou pontos.");
+  const assessments=new Array(points.length).fill(null);
+  let valid=0,highest=0;
+  datasets.forEach((data,i)=>{
+   const times=data.hourly?.time;
+   if(!Array.isArray(times)||!times.length)return;
+   const idx=tornadoNearestHour(times);
+   const assessment=tornadoRiskAssessment(data,idx);
+   if(assessment.score===null)return;
+   assessments[i]=assessment;
+   valid++;
+   highest=Math.max(highest,assessment.score);
+  });
+  if(valid<4)throw new Error("Poucos pontos com dados válidos para formar o campo fluido.");
+  const imageUrl=tornadoSmoothField(points,assessments);
+  tornadoRiskLayer.clearLayers();
+  const south=Math.min(...points.map(p=>p.lat));
+  const north=Math.max(...points.map(p=>p.lat));
+  const west=Math.min(...points.map(p=>p.lon));
+  const east=Math.max(...points.map(p=>p.lon));
+  L.imageOverlay(imageUrl,[[south,west],[north,east]],{
+   opacity:1,interactive:false,crossOrigin:false
+  }).addTo(tornadoRiskLayer);
+  if(tornadoRiskEnabled)tornadoRiskLayer.addTo(map);
+  tornadoRiskLastRun=Date.now();
+  status.textContent=`Campo contínuo interpolado em ${valid}/${points.length} pontos. Maior índice amostrado: ${highest}/8. Modelo: GFS/Open-Meteo.`;
+  document.getElementById("tornadoRiskDetails").textContent=
+   "Visualização fluida por interpolação espacial dos pontos GFS. Cisalhamento estimado entre 10 m e 500 hPa (~5,6 km) e entre 10 m e 925 hPa (~0,8 km). SRH não está disponível neste cálculo. As transições suaves são interpolação gráfica, não resolução real adicional do modelo.";
+ }catch(error){
+  if(error.name!=="AbortError"){
+   status.textContent=`Falha ao consultar dados atmosféricos: ${error.message}`;
+  }
+ }finally{
+  tornadoRiskBusy=false;
+ }
+}
+
+// Produtos de previsão: tempestades e chuva extrema.
+const forecastProducts={
+ storms:{enabled:false,busy:false,layer:L.layerGroup(),abort:null,data:null,index:0},
+ rain:{enabled:false,busy:false,layer:L.layerGroup(),abort:null,data:null,index:0}
+};
+function forecastProductScore(kind,data,index){
+ const h=data.hourly||{};
+ const val=k=>Number(h[k]?.[index]);
+ if(kind==="rain"){
+  const mm=val("precipitation");
+  if(!Number.isFinite(mm))return null;
+  return Math.max(0,Math.min(8,mm<=0?0:mm<1?1:mm<5?3:mm<10?5:mm<20?7:8));
+ }
+ const cape=val("cape"),conv=val("showers"),weather=val("weather_code");
+ if(!Number.isFinite(cape)||!Number.isFinite(conv))return null;
+ let score=0;
+ if(cape>=250)score++;
+ if(cape>=750)score++;
+ if(cape>=1500)score++;
+ if(conv>=0.5)score++;
+ if(conv>=2)score++;
+ if(conv>=5)score++;
+ if([95,96,99].includes(weather))score+=2;
+ return Math.min(8,score);
+}
+function forecastHourLabel(time){
+ const d=new Date(time);
+ return Number.isNaN(d.getTime())?time:d.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+}
+function forecastHourlySummary(kind,index){
+ const product=forecastProducts[kind],datasets=product.data?.datasets||[];
+ let scores=[],cape=[],conv=[],rain=[],acc3=[],acc6=[],acc24=[];
+ datasets.forEach(data=>{
+  const h=data.hourly||{};
+  const get=k=>Number(h[k]?.[index]);
+  if(kind==="storms"){
+   const s=forecastProductScore(kind,data,index);
+   if(s!==null)scores.push(s);
+   if(Number.isFinite(get("cape")))cape.push(get("cape"));
+   if(Number.isFinite(get("showers")))conv.push(get("showers"));
+  }else{
+   const values=h.precipitation||[];
+   const mm=Number(values[index]);
+   if(Number.isFinite(mm)){
+    rain.push(mm);
+    const sum=(n)=>values.slice(Math.max(0,index-n+1),index+1).reduce((a,v)=>a+(Number(v)||0),0);
+    acc3.push(sum(3));acc6.push(sum(6));acc24.push(sum(24));
+   }
+  }
+ });
+ const max=a=>a.length?Math.max(...a):null;
+ return {score:max(scores),cape:max(cape),conv:max(conv),rain:max(rain),acc3:max(acc3),acc6:max(acc6),acc24:max(acc24)};
+}
+function forecastRiskLabel(score){
+ if(score===null)return "Sem dados";
+ return score<=1?"Baixo":score<=3?"Moderado":score<=5?"Alto":"Muito alto";
+}
+function renderForecastHour(kind,index){
+ const product=forecastProducts[kind],data=product.data;
+ if(!data)return;
+ const times=data.times;
+ const i=Math.max(0,Math.min(times.length-1,Number(index)||0));
+ product.index=i;
+ const summary=forecastHourlySummary(kind,i);
+ const slider=document.getElementById(kind==="storms"?"stormsForecastHour":"rainForecastHour");
+ slider.max=String(times.length-1);slider.value=String(i);slider.disabled=false;
+ const selected=document.getElementById(kind==="storms"?"stormsForecastSelectedTime":"rainForecastSelectedTime");
+ selected.textContent=`HORÁRIO SELECIONADO: ${forecastHourLabel(times[i])} · GFS`;
+ const rows=document.getElementById(kind==="storms"?"stormsForecastRows":"rainForecastRows");
+ const fmt=(v,d=1)=>v===null||!Number.isFinite(v)?"N/D":v.toFixed(d);
+ const begin=Math.max(0,i-2),finish=Math.min(times.length-1,i+5);
+ let markup="";
+ for(let j=begin;j<=finish;j++){
+  const s=forecastHourlySummary(kind,j);
+  const active=j===i?' class="selected"':"";
+  if(kind==="storms"){
+   markup+=`<tr${active} onclick="renderForecastHour('storms',${j})"><td>${forecastHourLabel(times[j])}</td><td>${forecastRiskLabel(s.score)}</td><td>${fmt(s.cape,0)} J/kg</td><td>${fmt(s.conv,1)} mm</td></tr>`;
+  }else{
+   markup+=`<tr${active} onclick="renderForecastHour('rain',${j})"><td>${forecastHourLabel(times[j])}</td><td>${fmt(s.rain)}</td><td>${fmt(s.acc3)}</td><td>${fmt(s.acc6)}</td><td>${fmt(s.acc24)}</td></tr>`;
+  }
+ }
+ rows.innerHTML=markup||`<tr><td colspan="${kind==="storms"?4:5}">Sem dados neste horário.</td></tr>`;
+ // Refresh the fluid map for the selected valid time.
+ const points=data.points;
+ const scores=new Array(points.length).fill(null);
+ let valid=0,peak=0;
+ data.datasets.forEach((dataset,pointIndex)=>{
+  const score=forecastProductScore(kind,dataset,i);
+  if(score===null)return;
+  scores[pointIndex]={score};valid++;peak=Math.max(peak,score);
+ });
+ if(valid>=4){
+  const imageUrl=tornadoSmoothField(points,scores);
+  product.layer.clearLayers();
+  const south=Math.min(...points.map(p=>p.lat)),north=Math.max(...points.map(p=>p.lat));
+  const west=Math.min(...points.map(p=>p.lon)),east=Math.max(...points.map(p=>p.lon));
+  L.imageOverlay(imageUrl,[[south,west],[north,east]],{opacity:1,interactive:false,crossOrigin:false}).addTo(product.layer);
+  if(product.enabled)product.layer.addTo(map);
+ }
+ const status=document.getElementById(kind==="storms"?"stormForecastStatus":"extremeRainStatus");
+ status.textContent=kind==="storms"
+  ?`Potencial máximo na área: ${forecastRiskLabel(summary.score)} · CAPE máximo ${fmt(summary.cape,0)} J/kg · chuva convectiva ${fmt(summary.conv,1)} mm.`
+  :`Pico na área: ${fmt(summary.rain)} mm/h · acumulado máximo 3h ${fmt(summary.acc3)} mm · 6h ${fmt(summary.acc6)} mm · 24h ${fmt(summary.acc24)} mm.`;
+}
+function shiftForecastHour(kind,delta){
+ const product=forecastProducts[kind];
+ if(product.data)renderForecastHour(kind,product.index+delta);
+}
+async function refreshForecastProduct(kind){
+ const product=forecastProducts[kind];
+ if(!product||!product.enabled||product.busy)return;
+ product.busy=true;
+ const status=document.getElementById(kind==="storms"?"stormForecastStatus":"extremeRainStatus");
+ status.textContent="Consultando a previsão horária do GFS...";
+ if(product.abort)product.abort.abort();
+ product.abort=new AbortController();
+ const points=tornadoGridPoints();
+ const lat=points.map(p=>p.lat.toFixed(3)).join(",");
+ const lon=points.map(p=>p.lon.toFixed(3)).join(",");
+ const vars=kind==="storms"?"cape,showers,weather_code":"precipitation";
+ const url=`${TORNADO_RISK_API}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=${vars}&forecast_days=2&timezone=auto`;
+ try{
+  const response=await fetch(url,{signal:product.abort.signal,cache:"no-store"});
+  if(!response.ok)throw new Error(`Open-Meteo HTTP ${response.status}`);
+  const payload=await response.json();
+  const datasets=Array.isArray(payload)?payload:[payload];
+  const times=datasets.find(d=>Array.isArray(d.hourly?.time))?.hourly.time;
+  if(!times?.length)throw new Error("O GFS não retornou série horária.");
+  product.data={datasets,points,times};
+  const now=Date.now();
+  let idx=times.findIndex(t=>new Date(t).getTime()>=now);
+  if(idx<0)idx=0;
+  renderForecastHour(kind,idx);
+ }catch(error){
+  if(error.name!=="AbortError")status.textContent=`Falha na consulta: ${error.message}`;
+ }finally{product.busy=false;}
+}
+function toggleForecastProduct(kind){
+ const product=forecastProducts[kind];
+ product.enabled=!product.enabled;
+ const storms=kind==="storms";
+ const button=document.getElementById(storms?"stormForecastToggle":"extremeRainToggle");
+ button.textContent=product.enabled
+  ?(storms?"DESATIVAR PREVISÃO DE TEMPESTADES":"DESATIVAR PREVISÃO DE CHUVA EXTREMA")
+  :(storms?"ATIVAR PREVISÃO DE TEMPESTADES":"ATIVAR PREVISÃO DE CHUVA EXTREMA");
+ if(product.enabled){
+  product.layer.addTo(map);
+  refreshForecastProduct(kind);
+ }else{
+  if(product.abort)product.abort.abort();
+  product.layer.remove();
+  document.getElementById(storms?"stormForecastStatus":"extremeRainStatus").textContent="Produto desligado.";
+ }
+}
+
+function toggleTornadoRisk(){
+ tornadoRiskEnabled=!tornadoRiskEnabled;
+ const button=document.getElementById("tornadoRiskToggle");
+ if(tornadoRiskEnabled){
+  button.textContent="DESATIVAR RISCO DE TORNADO";
+  tornadoRiskLayer.addTo(map);
+  refreshTornadoRisk();
+ }else{
+  button.textContent="ATIVAR RISCO NA ÁREA DO MAPA";
+  if(tornadoRiskAbort)tornadoRiskAbort.abort();
+  tornadoRiskLayer.remove();
+  document.getElementById("tornadoRiskStatus").textContent="Camada desligada.";
+ }
+}
+
 
 // ============================================
 // LOCALIZAÇÃO E DISTÂNCIA
@@ -1185,6 +1674,227 @@ document.getElementById("lightningOpacity").addEventListener("input",event=>{
  lightningLayers.forEach(layer=>layer.setStyle({opacity,fillOpacity:opacity}));
 });
 
+// ============================================
+// TSC / STSC · TEMPO SEVERO CONVECTIVO · REDEMET
+// ============================================
+function stscEscapeHTML(value){
+ return String(value??"").replace(/[&<>"']/g,char=>({
+  "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+ }[char]));
+}
+
+function stscFramePolygons(frame){
+ const rings=[];
+ const isPoint=value=>value&&typeof value==="object"&&
+  (value.la!==undefined||value.lat!==undefined)&&
+  (value.lo!==undefined||value.lon!==undefined);
+ const toPoint=value=>({
+  lat:Number(value?.la??value?.lat),
+  lon:Number(value?.lo??value?.lon)
+ });
+ function walk(node){
+  if(!Array.isArray(node)){
+   if(isPoint(node)){
+    const point=toPoint(node);
+    if(Number.isFinite(point.lat)&&Number.isFinite(point.lon)&&
+       Math.abs(point.lat)<=90&&Math.abs(point.lon)<=180)rings.push([point]);
+   }
+   return;
+  }
+  if(node.length&&node.every(isPoint)){
+   const points=node.map(toPoint).filter(point=>
+    Number.isFinite(point.lat)&&Number.isFinite(point.lon)&&
+    Math.abs(point.lat)<=90&&Math.abs(point.lon)<=180
+   );
+   if(points.length)rings.push(points);
+   return;
+  }
+  node.forEach(walk);
+ }
+ walk(frame);
+ return rings;
+}
+
+function stscFrameColor(index,total){
+ if(total<=1)return "#e33434";
+ const ratio=index/(total-1); // azul = antigo; vermelho = recente
+ const red=Math.round(40+(227-40)*ratio);
+ const green=Math.round(100+(52-100)*ratio);
+ const blue=Math.round(197+(52-197)*ratio);
+ return `rgb(${red},${green},${blue})`;
+}
+
+function normalizeSTSCResponse(json){
+ if(json?.status!==true)throw new Error(json?.message||"A REDEMET não confirmou uma resposta válida.");
+ const data=json?.data;
+ if(!data||!Array.isArray(data.stsc))throw new Error("Resposta STSC sem o campo data.stsc no formato esperado.");
+ const times=Array.isArray(data.anima)?data.anima:[];
+ const info=data.info&&typeof data.info==="object"?data.info:{};
+ return data.stsc.map((raw,index)=>({
+  time:String(times[index]??`Quadro ${index+1}`),
+  positions:stscFramePolygons(raw),
+  info
+ }));
+}
+
+// O TSC oficial mantém as ocorrências antigas e recentes simultaneamente:
+// azul representa detecções antigas e vermelho representa as mais recentes.
+// O controle temporal funciona como limite cumulativo, não como quadro isolado.
+function showSTSCFrame(index){
+ if(!stscFrames.length){
+  stscGroup.clearLayers();
+  document.getElementById("stscTimeline").max=0;
+  document.getElementById("stscTimeline").value=0;
+  document.getElementById("stscTimeline").disabled=true;
+  document.getElementById("stscTime").textContent="Sem ocorrências";
+  document.getElementById("stscFrameNumber").textContent="0 / 0";
+  return;
+ }
+ stscCurrentFrame=Math.max(0,Math.min(stscFrames.length-1,index));
+ const opacity=Number(document.getElementById("stscOpacity").value)/100;
+ stscGroup.clearLayers();
+ let plotted=0;
+ let latestTime="";
+
+ // Cada célula STSC é representada por uma posição central e um raio.
+ // Não conectar coordenadas em polígonos: isso produzia manchas preenchidas incorretas.
+ for(let frameIndex=0;frameIndex<=stscCurrentFrame;frameIndex++){
+  const frame=stscFrames[frameIndex];
+  const color=stscFrameColor(frameIndex,stscFrames.length);
+  latestTime=frame.time;
+  const info=frame.info||{};
+  const rawRadius=Number(info.raio);
+  const radiusMeters=Number.isFinite(rawRadius)&&rawRadius>0
+   ?Math.max(500,Math.min(rawRadius,50000))
+   :null;
+  const details=[
+   info.tipo!==undefined?`Tipo: ${stscEscapeHTML(info.tipo)}`:"",
+   info.topo!==undefined?`Topo: ${stscEscapeHTML(info.topo)}`:"",
+   radiusMeters!==null?`Raio: ${Math.round(radiusMeters)} m`:""
+  ].filter(Boolean).join("<br>");
+  const popup=`<b>TSC · Tempo severo convectivo</b><br>Horário: ${stscEscapeHTML(frame.time)}${details?`<br>${details}`:""}<br>Fonte: REDEMET/DECEA`;
+
+  frame.positions.forEach(points=>{
+   points.forEach(point=>{
+    const latlng=[point.lat,point.lon];
+    const layer=radiusMeters!==null
+     ?L.circle(latlng,{
+       radius:radiusMeters,color,weight:2,
+       opacity:Math.max(.45,opacity),fillColor:color,
+       fillOpacity:Math.min(.22,opacity*.22),renderer:lightningCanvas
+      })
+     :L.circleMarker(latlng,{
+       radius:6,color,weight:2,opacity,
+       fillColor:color,fillOpacity:opacity,renderer:lightningCanvas
+      });
+    layer.bindPopup(popup).addTo(stscGroup);
+    plotted++;
+   });
+  });
+ }
+
+ const timeline=document.getElementById("stscTimeline");
+ timeline.max=String(stscFrames.length-1);
+ timeline.value=String(stscCurrentFrame);
+ timeline.disabled=stscFrames.length<2;
+ document.getElementById("stscTime").textContent=`Até ${latestTime}`;
+ document.getElementById("stscFrameNumber").textContent=
+  `${stscCurrentFrame+1} / ${stscFrames.length} · ${plotted} células/posições`;
+ document.getElementById("stscStatus").textContent=plotted
+  ?`${plotted} posições de células exibidas. Azul: registros antigos; vermelho: registros recentes.`
+  :"A consulta retornou quadros, mas sem coordenadas geográficas válidas.";
+}
+
+async function refreshSTSC(manual=false){
+ if(!stscEnabled)return;
+ if(stscRequest){
+  if(!manual)return;
+  stscRequest.abort();
+ }
+ const status=document.getElementById("stscStatus");
+ stscRequest=new AbortController();
+ const request=stscRequest;
+ const timeout=setTimeout(()=>request.abort(),20000);
+ try{
+  const params=new URLSearchParams({
+   api_key:API_KEY,
+   data:utcHour(),
+   anima:String(STSC_ANIMATION_FRAMES)
+  });
+  const response=await fetch(`${STSC_API}?${params.toString()}`,{
+   cache:"no-store",signal:request.signal
+  });
+  if(!response.ok){
+   let detail=`HTTP ${response.status}`;
+   try{
+    const body=await response.json();
+    detail=body?.message||body?.detail||body?.error||detail;
+   }catch{}
+   throw new Error(detail);
+  }
+  const json=await response.json();
+  const nextFrames=normalizeSTSCResponse(json);
+  const signature=JSON.stringify(nextFrames);
+  if(signature!==stscLastSignature){
+   stscLastSignature=signature;
+   stscFrames=nextFrames;
+   showSTSCFrame(stscFrames.length-1);
+  }
+  const total=stscFrames.reduce((sum,frame)=>sum+frame.positions.length,0);
+  status.textContent=total
+   ?`${total} posições recebidas em ${stscFrames.length} horário(s). Azul = antigas; vermelho = recentes.`
+   :"Consulta concluída, mas a REDEMET não retornou coordenadas STSC para o horário consultado.";
+ }catch(error){
+  if(error.name!=="AbortError"){
+   status.textContent=`Falha ao consultar STSC: ${error.message}. Verifique a chave e a disponibilidade da API.`;
+  }else if(manual){
+   status.textContent="Consulta STSC excedeu o tempo limite.";
+  }
+ }finally{
+  clearTimeout(timeout);
+  if(stscRequest===request)stscRequest=null;
+ }
+}
+
+function toggleSTSC(){
+ stscEnabled=!stscEnabled;
+ const button=document.getElementById("stscToggle");
+ const menuButton=document.getElementById("menu-stsc");
+ if(stscEnabled){
+  stscGroup.addTo(map);
+  button.textContent="DESATIVAR TSC";
+  button.classList.remove("primary");button.classList.add("danger");
+  if(menuButton)menuButton.textContent="DESATIVAR TSC";
+  document.getElementById("stscStatus").textContent="Consultando ocorrências do STSC da REDEMET...";
+  refreshSTSC();
+  stscTimer=setInterval(()=>refreshSTSC(),180000);
+ }else{
+  if(stscTimer)clearInterval(stscTimer);
+  stscTimer=null;
+  if(stscRequest)stscRequest.abort();
+  stscRequest=null;
+  stscGroup.clearLayers();
+  map.removeLayer(stscGroup);
+  button.textContent="ATIVAR TSC";
+  button.classList.remove("danger");button.classList.add("primary");
+  if(menuButton)menuButton.textContent="ATIVAR / DESATIVAR TSC";
+  document.getElementById("stscStatus").textContent="Camada desligada. Fonte: REDEMET/DECEA.";
+ }
+}
+
+function stepSTSCFrame(direction){
+ if(!stscFrames.length)return;
+ showSTSCFrame(stscCurrentFrame+direction);
+}
+
+document.getElementById("stscTimeline").addEventListener("input",event=>{
+ showSTSCFrame(Number(event.target.value));
+});
+
+document.getElementById("stscOpacity").addEventListener("input",()=>{
+ if(stscFrames.length)showSTSCFrame(stscCurrentFrame);
+});
+
 // Inicialização independente da API meteorológica.
 function ensureMapVisible(){
  if(window.L && map){
@@ -1204,6 +1914,21 @@ window.addEventListener("resize",()=>setTimeout(ensureMapVisible,150));
 
 // Carrega o radar sem bloquear nem recriar o mapa-base.
 refreshRadar();
+
+let tornadoRiskMoveTimer=null;
+map.on("moveend",()=>{
+ Object.keys(forecastProducts).forEach(kind=>{
+  if(forecastProducts[kind].enabled){
+   clearTimeout(forecastProducts[kind].moveTimer);
+   forecastProducts[kind].moveTimer=setTimeout(()=>refreshForecastProduct(kind),1000);
+  }
+ });
+
+ if(!tornadoRiskEnabled)return;
+ clearTimeout(tornadoRiskMoveTimer);
+ tornadoRiskMoveTimer=setTimeout(()=>refreshTornadoRisk(),900);
+});
+
 </script>
 </body>
 </html>
