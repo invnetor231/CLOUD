@@ -1,0 +1,1190 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#ffffff">
+<title>CLOUDGOD | Radar Meteorológico</title>
+
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+
+<style>
+*{box-sizing:border-box}
+html,body{width:100%;min-height:100%;margin:0}
+.map-card{min-width:0}
+.leaflet-container{width:100%;height:100%;font-family:Arial,sans-serif}
+.legend{display:flex;gap:3px;height:12px;margin:8px 0;border-radius:6px;overflow:hidden}
+.legend i{display:block;flex:1}
+.legend-labels{display:flex;justify-content:space-between;font-size:9px;color:#8293a8}
+:root{
+--blue:#1677ff;
+--bg:#f6f9ff;
+--text:#19304b;
+--muted:#8293a8;
+--border:#e8eef5;
+}
+body{
+margin:0;
+background:var(--bg);
+font-family:Arial,sans-serif;
+color:var(--text);
+}
+header{
+height:72px;
+background:#fff;
+border-bottom:1px solid var(--border);
+display:flex;
+align-items:center;
+justify-content:space-between;
+padding:0 20px;
+position:relative;
+z-index:1000;
+}
+.brand{display:flex;align-items:center;gap:11px}
+.logo{
+width:43px;height:43px;border-radius:14px;
+background:linear-gradient(140deg,#1677ff,#77c9ff);
+color:white;display:grid;place-items:center;font-size:23px;
+}
+.brand h1{font-size:20px;letter-spacing:1.5px;margin:0}
+.brand small{font-size:9px;color:var(--muted);letter-spacing:1px}
+.status{
+background:#edfaf2;color:#159657;
+border-radius:30px;padding:9px 12px;font-size:10px;font-weight:bold;
+}
+main{max-width:1700px;margin:auto;padding:17px}
+.dashboard{
+display:grid;
+grid-template-columns:minmax(0,1fr) 315px;
+gap:16px;
+}
+.map-card,.panel,.loop{
+background:white;border:1px solid var(--border);
+border-radius:17px;overflow:hidden;
+box-shadow:0 8px 30px #234b7710;
+}
+.map-head{
+height:63px;padding:12px 16px;
+display:flex;align-items:center;justify-content:space-between;
+border-bottom:1px solid var(--border);
+}
+.map-head h2{font-size:14px;margin:0 0 5px}
+.map-head small{font-size:10px;color:var(--muted)}
+button,select{font-family:inherit}
+button{
+border:0;border-radius:9px;padding:11px 13px;
+font-size:11px;font-weight:bold;cursor:pointer;
+transition:.2s;
+}
+button:hover{transform:translateY(-2px)}
+.primary{background:linear-gradient(120deg,#1677ff,#50aaff);color:white}
+.secondary{background:#edf4ff;color:#31659d}
+.danger{background:#fff0f0;color:#d44e4e}
+#map{
+position:relative;
+width:100%;
+height:calc(100vh - 225px);
+min-height:470px;
+background:#eaf2f8;
+}
+.side{display:flex;flex-direction:column;gap:13px}
+.panel{padding:16px}
+.panel h3{font-size:12px;margin:0 0 14px}
+.panel-title{display:flex;justify-content:space-between;align-items:center}
+.panel-title span{font-size:9px;color:var(--muted)}
+.product{
+border:1px solid var(--border);border-radius:11px;
+padding:12px;margin-bottom:8px;
+display:flex;justify-content:space-between;align-items:center;
+cursor:pointer;
+}
+.product.active{background:#eff6ff;border-color:#72afff}
+.product strong{font-size:11px}
+.product small{display:block;color:var(--muted);font-size:9px;margin-top:4px}
+.dot{width:9px;height:9px;background:#cbd7e5;border-radius:50%}
+.product.active .dot{background:var(--blue);box-shadow:0 0 0 4px #1677ff20}
+label{font-size:10px;color:#74859a;font-weight:bold;display:block;margin:12px 0 7px}
+select{width:100%;padding:11px;border:1px solid var(--border);border-radius:9px;background:#f8faff;color:#29415d;font-size:11px}
+input[type=range]{width:100%;accent-color:var(--blue)}
+#message{font-size:10px;color:#647b95;line-height:1.6;margin-top:12px;overflow-wrap:anywhere}
+.info{background:#f2f7ff;border-radius:10px;padding:11px;font-size:10px;line-height:1.6;color:#647b95}
+.loop{padding:17px;margin-top:15px}
+.loop-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px}
+.loop h3{font-size:13px;margin:0}
+.controls{display:flex;gap:8px;flex-wrap:wrap}
+.controls button{flex:1;min-width:85px}
+.timeline{margin-top:16px;width:100%;accent-color:var(--blue)}
+.timeinfo{display:flex;justify-content:space-between;font-size:10px;color:var(--muted)}
+.options{display:flex;gap:13px;flex-wrap:wrap;align-items:center;margin-top:12px}
+.options label{margin:0;display:flex;gap:5px;align-items:center}
+.options select{width:auto;padding:8px}
+.footer{text-align:center;padding:18px;color:#9aa9b9;font-size:9px}
+
+/* Raster meteorológico: interpolação padrão do navegador, sem filtros,
+   nitidez forçada ou transformações acumuladas que deformem a imagem. */
+.map-card{position:relative;min-width:0}
+.leaflet-image-layer,.leaflet-radar-raster{
+ image-rendering:auto!important;
+ image-rendering: smooth;
+ filter:none!important;
+ backface-visibility:visible;
+}
+.leaflet-overlay-pane img{max-width:none!important;max-height:none!important}
+.radar-station-icon{background:transparent;border:0;text-align:center;font-size:23px;line-height:30px;filter:drop-shadow(0 1px 2px #fff)}
+/* RAIOS E RELÂMPAGOS */
+.lightning-marker{width:27px;height:27px;border-radius:50%;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 1px 7px #182b45aa;font-size:17px;line-height:1;color:#fff}
+.lightning-legend{display:flex;gap:7px;flex-wrap:wrap;align-items:center;margin-top:9px;font-size:9px;color:#647b95}
+.lightning-legend span{display:inline-flex;align-items:center;gap:3px}
+.lightning-dot{width:9px;height:9px;border-radius:50%;display:inline-block;border:1px solid #0002}
+.lightning-status{font-size:10px;line-height:1.5;color:#647b95;margin-top:8px}
+
+.radar-station-label{font-size:10px;font-weight:bold;color:#19304b;background:rgba(255,255,255,.9);border:1px solid #dce7f4;border-radius:6px;padding:3px 5px;white-space:nowrap}
+
+/* MEDIÇÃO DE ÁREA */
+.area-card{position:absolute;z-index:850;right:16px;top:83px;width:225px;max-width:calc(100% - 32px);padding:13px;border:1px solid #ffffffc9;border-radius:15px;background:rgba(255,255,255,.84);backdrop-filter:blur(16px);box-shadow:0 8px 30px #193b6020;display:none;pointer-events:none}
+.area-card.visible{display:block}
+.area-card-title{font-size:10px;font-weight:bold;color:#315477}
+.area-card-value{font-size:25px;font-weight:bold;color:#1677ff;margin:5px 0}
+.area-card-value small{font-size:11px;color:#71849b}
+.area-card-detail{font-size:10px;line-height:1.5;color:#647b95}
+.area-measure-tooltip{font-size:10px;font-weight:bold;color:#1457a0}
+
+/* BOTÕES DE MODOS */
+.mode-buttons{
+display:flex;gap:7px;
+}
+.mode-button{
+background:#edf4ff;color:#2865a8;
+padding:10px 12px;
+}
+
+/* CARTÃO TRANSPARENTE DE DISTÂNCIA */
+.distance-card{
+position:absolute;
+z-index:800;
+top:83px;
+left:15px;
+width:220px;
+max-width:calc(100% - 30px);
+border:1px solid #ffffffb8;
+border-radius:16px;
+background:rgba(255,255,255,.76);
+backdrop-filter:blur(18px);
+-webkit-backdrop-filter:blur(18px);
+box-shadow:0 8px 35px #193b6020;
+padding:13px;
+cursor:pointer;
+transition:all .25s ease;
+display:none;
+}
+.distance-card.visible{display:block}
+.distance-card.expanded{
+width:290px;
+background:rgba(255,255,255,.91);
+}
+.distance-top{
+display:flex;align-items:center;justify-content:space-between;
+font-size:11px;font-weight:bold;
+}
+.distance-number{
+font-size:27px;
+font-weight:850;
+color:#1677ff;
+margin:9px 0 2px;
+}
+.distance-number small{font-size:12px;color:#7d8da1}
+.distance-details{
+display:none;
+border-top:1px solid #dce7f4;
+margin-top:10px;
+padding-top:10px;
+font-size:10px;
+line-height:1.8;
+color:#536981;
+}
+.distance-card.expanded .distance-details{display:block}
+.distance-hint{font-size:9px;color:#8796a8;margin-top:6px}
+
+/* MODO ECONOMIA */
+.economy-toggle{
+display:none;
+position:fixed;
+z-index:2000;
+top:calc(14px + env(safe-area-inset-top));
+right:calc(14px + env(safe-area-inset-right));
+width:45px;height:45px;
+font-size:23px;
+border-radius:13px;
+background:rgba(255,255,255,.91);
+color:#1677ff;
+box-shadow:0 4px 20px #183b651c;
+backdrop-filter:blur(15px);
+}
+.economy-menu{
+display:none;
+position:fixed;
+z-index:1999;
+top:67px;
+right:14px;
+width:230px;
+padding:15px;
+border:1px solid #ffffffc9;
+border-radius:16px;
+background:rgba(255,255,255,.91);
+backdrop-filter:blur(20px);
+box-shadow:0 10px 35px #193b6022;
+}
+.economy-menu.open{display:block}
+.economy-menu h3{font-size:12px;margin:0 0 12px}
+.economy-menu button{width:100%;margin-bottom:7px;text-align:left}
+.economy-menu .selected{background:#e8f2ff;color:#1269d9}
+
+/* TELA CHEIA */
+body.economy{overflow:hidden}
+body.economy header,
+body.economy .side,
+body.economy .loop,
+body.economy .footer{display:none!important}
+body.economy main{
+ display:block!important;
+ position:fixed;
+ inset:0;
+ width:100%;
+ max-width:none;
+ height:100dvh;
+ margin:0;
+ padding:0;
+ z-index:1;
+}
+body.economy .dashboard{display:block;width:100%;height:100%}
+body.economy .map-card{
+ display:block;
+ width:100%;height:100%;
+ border:0;border-radius:0;box-shadow:none;
+}
+body.economy .map-head{display:none!important}
+body.economy #map{
+ position:absolute;inset:0;width:100%;height:100dvh;min-height:0;z-index:1;
+}
+body.economy .economy-toggle{display:block}
+body.economy .distance-card{top:72px;left:12px}
+body.economy .leaflet-control-attribution{
+font-size:8px!important;
+}
+
+@media(max-width:850px){
+header{padding:0 12px}
+.brand h1{font-size:18px}
+.dashboard{grid-template-columns:1fr}
+#map{height:58vh;min-height:390px}
+.side{display:grid;grid-template-columns:1fr 1fr}
+.side .panel:last-child{grid-column:1/-1}
+}
+@media(max-width:480px){
+.side{grid-template-columns:1fr}
+.side .panel:last-child{grid-column:auto}
+}
+</style>
+</head>
+
+<body>
+
+<header>
+<div class="brand">
+<div class="logo">☁</div>
+<div>
+<h1>CLOUDGOD</h1>
+<small>MONITORAMENTO METEOROLÓGICO</small>
+</div>
+</div>
+<div class="status" id="status">● INICIALIZANDO</div>
+</header>
+
+<main>
+<div class="dashboard">
+
+<section class="map-card">
+<div class="map-head">
+<div>
+<h2>Radar meteorológico brasileiro</h2>
+<small id="subtitle">OPENSTREETMAP · BRASIL</small>
+</div>
+<div class="mode-buttons">
+<button class="mode-button" onclick="requestLocation()">⌖ MINHA POSIÇÃO</button>
+<button class="primary" onclick="toggleEconomy()">MODO ECONOMIA</button>
+</div>
+</div>
+<div id="map"></div>
+</section>
+
+<aside class="side">
+
+<section class="panel">
+<div class="panel-title">
+<h3>PRODUTOS METEOROLÓGICOS</h3>
+<span>REDEMET</span>
+</div>
+
+<div class="product active" data-product="maxcappi" onclick="selectProduct('maxcappi')">
+<div><strong>MAXCAPPI</strong><small>Reflectividade máxima</small></div><div class="dot"></div>
+</div>
+
+<div class="product" data-product="07km" onclick="selectProduct('07km')">
+<div><strong>CAPPI 7 KM</strong><small>7.300 metros</small></div><div class="dot"></div>
+</div>
+
+<div class="product" data-product="05km" onclick="selectProduct('05km')">
+<div><strong>CAPPI 5 KM</strong><small>5.500 metros</small></div><div class="dot"></div>
+</div>
+
+<div class="product" data-product="infrared" onclick="selectProduct('infrared')">
+<div><strong>INFRAVERMELHO REALÇADO</strong><small>Satélite · imagem infravermelha colorida</small></div><div class="dot"></div>
+</div>
+
+<div class="info" style="margin:10px 0 12px">Exibindo imagens de todos os radares disponíveis. O ícone 📡 indica a localização de cada estação de radar.</div>
+
+<label>OPACIDADE DA IMAGEM</label>
+<input type="range" id="opacity" min="10" max="100" value="90">
+
+<button class="primary" style="width:100%;margin-top:12px" onclick="refreshRadar()">ATUALIZAR REFLECTIVIDADE</button>
+<div id="message">Preparando radar...</div>
+</section>
+
+<section class="panel">
+<h3>MEDIDOR DE DISTÂNCIA</h3>
+<div class="info">
+Toque em qualquer local do mapa para medir a distância em linha reta a partir da sua posição.
+</div>
+<button class="secondary" style="width:100%;margin-top:10px" onclick="requestLocation()">⌖ LOCALIZAR-ME</button>
+<button class="secondary" style="width:100%;margin-top:7px" onclick="clearSelection()">LIMPAR SELEÇÃO</button>
+<button class="primary" style="width:100%;margin-top:7px" id="areaModeButton" onclick="toggleAreaMode()">▱ MEDIR ÁREA NO MAPA</button>
+<button class="danger" style="width:100%;margin-top:7px" onclick="clearAreaMeasurement()">APAGAR MEDIDA DE ÁREA</button>
+<div id="areaStatus" style="font-size:10px;color:#75869a;margin-top:8px">Modo de área desativado.</div>
+<div id="locationStatus" style="font-size:10px;color:#75869a;margin-top:10px">Localização não solicitada.</div>
+</section>
+
+<section class="panel">
+<h3>LEGENDA DE REFLECTIVIDADE</h3>
+<div class="legend">
+<i style="background:#b6f0ff"></i>
+<i style="background:#42caff"></i>
+<i style="background:#0087ff"></i>
+<i style="background:#00c65b"></i>
+<i style="background:#a4e600"></i>
+<i style="background:#fff000"></i>
+<i style="background:#ff9900"></i>
+<i style="background:#ff3333"></i>
+<i style="background:#c000b9"></i>
+</div>
+<div class="legend-labels"><span>Fraca</span><span>Moderada</span><span>Forte</span><span>Intensa</span></div>
+</section>
+
+<section class="panel">
+<h3>RAIOS E RELÂMPAGOS</h3>
+<div class="info">Exibe detecções reais de descargas elétricas no mapa. O símbolo ⚡ identifica cada descarga; a cor representa a energia relativa detectada.</div>
+<button class="primary" id="lightningToggle" style="width:100%;margin-top:10px" onclick="toggleLightning()">ATIVAR RAIOS E RELÂMPAGOS</button>
+<label>OPACIDADE DOS MARCADORES</label>
+<input type="range" id="lightningOpacity" min="20" max="100" value="100">
+<div class="lightning-legend">
+<span><i class="lightning-dot" style="background:#25a85a"></i>Baixa</span>
+<span><i class="lightning-dot" style="background:#f4d43b"></i>Moderada</span>
+<span><i class="lightning-dot" style="background:#f28c28"></i>Alta</span>
+<span><i class="lightning-dot" style="background:#e33434"></i>Muito alta</span>
+</div>
+<div class="lightning-status" id="lightningStatus">Camada desligada. Fonte prevista: GOES-19 GLM.</div>
+</section>
+
+</aside>
+</div>
+
+<section class="loop">
+<div class="loop-head">
+<h3>ANIMAÇÃO TEMPORAL · PRODUTO ATIVO</h3>
+<span id="frameCounter" style="font-size:10px;color:#8293a7">0 imagens</span>
+</div>
+<div class="controls">
+<button class="primary" onclick="startLoop()">▶ INICIAR</button>
+<button class="secondary" onclick="pauseLoop()">Ⅱ PAUSAR</button>
+<button class="secondary" onclick="previousFrame()">◀ ANTERIOR</button>
+<button class="secondary" onclick="nextFrame()">PRÓXIMO ▶</button>
+<button class="danger" onclick="stopLoop()">■ PARAR</button>
+</div>
+<input class="timeline" id="timeline" type="range" min="0" max="0" value="0">
+<div class="timeinfo">
+<span id="frameDate">Aguardando imagens</span>
+<span id="frameNumber">0 / 0</span>
+</div>
+<div class="options">
+<label>VELOCIDADE</label>
+<select id="speed">
+<option value="1500">Lenta</option>
+<option value="800" selected>Normal</option>
+<option value="400">Rápida</option>
+<option value="200">Muito rápida</option>
+</select>
+<label><input type="checkbox" id="autoRefresh"> Atualização automática</label>
+</div>
+</section>
+</main>
+
+<!-- CARTÃO TRANSPARENTE -->
+<div class="distance-card" id="distanceCard" onclick="expandDistanceCard()">
+<div class="distance-top">
+<span>⌖ LOCAL SELECIONADO</span>
+<span id="expandIcon">＋</span>
+</div>
+<div class="distance-number">
+<span id="distanceValue">--</span>
+<small>km</small>
+</div>
+<div style="font-size:10px;color:#6c7e92" id="distanceLabel">Aguardando localização</div>
+<div class="distance-details">
+<div><b>Latitude:</b> <span id="selectedLat">--</span></div>
+<div><b>Longitude:</b> <span id="selectedLon">--</span></div>
+<div><b>Distância:</b> <span id="distanceFull">--</span></div>
+<div><b>Método:</b> Distância geodésica em linha reta</div>
+<div><b>Origem:</b> Sua localização GPS</div>
+</div>
+<div class="distance-hint">Toque para expandir ou recolher</div>
+</div>
+
+<div class="area-card" id="areaCard">
+ <div class="area-card-title">ÁREA SELECIONADA</div>
+ <div class="area-card-value"><span id="areaValue">0,00</span> <small>km²</small></div>
+ <div class="area-card-detail" id="areaDimensions">Aguardando dois pontos no mapa</div>
+</div>
+
+<!-- BOTÃO ECONOMIA -->
+<button class="economy-toggle" onclick="toggleEconomyMenu()">=</button>
+
+<!-- MENU ECONOMIA -->
+<div class="economy-menu" id="economyMenu">
+<h3>CLOUDGOD · PRODUTOS</h3>
+<button id="menu-maxcappi" class="selected" onclick="selectProduct('maxcappi');closeEconomyMenu()">MAXCAPPI</button>
+<button id="menu-07km" onclick="selectProduct('07km');closeEconomyMenu()">REFLECTIVIDADE 7 KM</button>
+<button id="menu-05km" onclick="selectProduct('05km');closeEconomyMenu()">REFLECTIVIDADE 5 KM</button>
+<button id="menu-infrared" onclick="selectProduct('infrared');closeEconomyMenu()">SATÉLITE INFRAVERMELHO REALÇADO</button>
+<hr style="border:0;border-top:1px solid #e7edf5;margin:10px 0">
+<button class="secondary" onclick="toggleEconomy()">SAIR DO MODO ECONOMIA</button>
+<button class="secondary" onclick="requestLocation()">MINHA LOCALIZAÇÃO</button>
+</div>
+
+<div class="footer">CLOUDGOD · REDEMET/DECEA · GOES-19 GLM · OPENSTREETMAP</div>
+
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js" onerror="this.onerror=null;this.src='https://unpkg.com/leaflet@1.9.4/dist/leaflet.js'"></script>
+
+<script>
+if(!window.L){
+ const mapBox=document.getElementById("map");
+ if(mapBox){mapBox.innerHTML='<div style="padding:22px;color:#19304b;font:14px Arial;text-align:center">Não foi possível carregar a biblioteca do mapa. Verifique a conexão e recarregue a página.</div>';}
+ throw new Error("Leaflet não carregou pelos CDNs disponíveis.");
+}
+// ============================================
+// CONFIGURAÇÃO REDEMET
+// ============================================
+
+const API_KEY="7qwre4IVDPRVlfPMxLyh25wFBnExIT0XictqRqLt";
+
+const API={
+ maxcappi:"https://api-redemet.decea.mil.br/produtos/radar/maxcappi",
+ "07km":"https://api-redemet.decea.mil.br/produtos/radar/07km",
+ "05km":"https://api-redemet.decea.mil.br/produtos/radar/05km",
+ infrared:"https://api-redemet.decea.mil.br/produtos/satelite/realcada"
+};
+
+let currentProduct="maxcappi";
+let frames=[];
+let currentFrame=0;
+let loopTimer=null;
+let radarLayers=[];
+let refreshing=false;
+const radarStationGroup=L.layerGroup();
+let radarStationsLoaded=false;
+
+// Descargas elétricas: o endpoint deve ser servido por uma função backend.
+// O backend consulta/decodifica os arquivos oficiais GOES-19 GLM-L2-LCFA
+// e devolve GeoJSON: {"type":"FeatureCollection","features":[...]}
+const LIGHTNING_API="/api/lightning";
+let lightningEnabled=false;
+let lightningTimer=null;
+let lightningGroup=L.layerGroup();
+let lightningFeatures=[];
+let lightningRefreshing=false;
+let lightningAbort=null;
+let lightningRenderer=L.canvas({padding:0.5});
+
+// ============================================
+// MAPA
+// ============================================
+
+const map=L.map("map",{
+ center:[-14.2,-51.9],
+ zoom:4,
+ preferCanvas:true
+});
+
+// Mapa-base com recuperação automática entre provedores de tiles.
+const baseTileSources=[
+ {url:"https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",name:"OpenStreetMap",attr:"© OpenStreetMap contributors"},
+ {url:"https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",name:"CARTO",attr:"© OpenStreetMap contributors © CARTO"},
+ {url:"https://tile.openstreetmap.de/{z}/{x}/{y}.png",name:"OSM Deutschland",attr:"© OpenStreetMap contributors"}
+];
+let baseTileIndex=0,baseTileErrors=0,baseTileLayer=null,baseTileSwitching=false;
+function installBaseTiles(index){
+ baseTileIndex=index; baseTileErrors=0;
+ if(baseTileLayer)map.removeLayer(baseTileLayer);
+ const source=baseTileSources[index];
+ baseTileLayer=L.tileLayer(source.url,{attribution:source.attr,maxZoom:19, crossOrigin:true, keepBuffer:3, updateWhenIdle:true});
+ baseTileLayer.on("tileerror",()=>{
+  baseTileErrors++;
+  if(baseTileErrors>=4 && !baseTileSwitching && baseTileIndex<baseTileSources.length-1){
+   baseTileSwitching=true;
+   setTimeout(()=>{installBaseTiles(baseTileIndex+1);baseTileSwitching=false;},500);
+  }
+ });
+ baseTileLayer.addTo(map);
+}
+installBaseTiles(0);
+map.on("load",()=>setTimeout(()=>map.invalidateSize({pan:false}),100));
+
+map.createPane("radarImages");
+map.getPane("radarImages").style.zIndex=350;
+map.getPane("radarImages").style.pointerEvents="none";
+const radarGroup=L.layerGroup().addTo(map);
+radarStationGroup.addTo(map);
+
+
+// ============================================
+// LOCALIZAÇÃO E DISTÂNCIA
+// ============================================
+
+let userPosition=null;
+let userMarker=null;
+let selectedMarker=null;
+let selectedPoint=null;
+let areaMode=false;
+let areaStart=null;
+let areaEnd=null;
+let areaRectangle=null;
+let areaStartMarker=null;
+let areaEndMarker=null;
+
+function requestLocation(){
+
+ if(!navigator.geolocation){
+  document.getElementById("locationStatus").textContent=
+   "Geolocalização não suportada.";
+  return;
+ }
+
+ document.getElementById("locationStatus").textContent=
+  "Obtendo sua localização...";
+
+ navigator.geolocation.getCurrentPosition(position=>{
+
+  userPosition={
+   lat:position.coords.latitude,
+   lon:position.coords.longitude
+  };
+
+  if(userMarker)map.removeLayer(userMarker);
+
+  userMarker=L.circleMarker(
+   [userPosition.lat,userPosition.lon],
+   {
+    radius:9,
+    color:"#ffffff",
+    weight:3,
+    fillColor:"#1677ff",
+    fillOpacity:1
+   }
+  ).addTo(map).bindPopup("Sua localização");
+
+  map.setView(
+   [userPosition.lat,userPosition.lon],
+   8
+  );
+
+  document.getElementById("locationStatus").textContent=
+   "Localização GPS obtida.";
+
+  if(selectedPoint)updateDistance();
+
+ },error=>{
+
+  const errors={
+   1:"Permissão de localização negada.",
+   2:"Localização indisponível.",
+   3:"Tempo de localização esgotado."
+  };
+
+  document.getElementById("locationStatus").textContent=
+   errors[error.code]||"Erro de localização.";
+
+ },{
+  enableHighAccuracy:true,
+  timeout:15000,
+  maximumAge:30000
+ });
+}
+
+// Fórmula de Haversine: distância em km.
+
+function haversine(lat1,lon1,lat2,lon2){
+
+ const R=6371;
+ const rad=x=>x*Math.PI/180;
+
+ const dLat=rad(lat2-lat1);
+ const dLon=rad(lon2-lon1);
+
+ const a=
+  Math.sin(dLat/2)**2+
+  Math.cos(rad(lat1))*
+  Math.cos(rad(lat2))*
+  Math.sin(dLon/2)**2;
+
+ return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+
+// ============================================
+// MODO A TOQUE
+// ============================================
+
+map.on("click",function(event){
+ if(areaMode){
+  const point={lat:event.latlng.lat,lng:event.latlng.lng};
+  if(!areaStart){
+   areaStart=point;
+   areaEnd=point;
+   areaStartMarker=L.circleMarker(event.latlng,{radius:5,color:"#fff",weight:2,fillColor:"#1677ff",fillOpacity:1}).addTo(map);
+   document.getElementById("areaStatus").textContent="Primeiro ponto marcado. Toque em outro ponto para definir e calcular a área.";
+  }else{
+   areaEnd=point;
+   if(areaEndMarker)map.removeLayer(areaEndMarker);
+   areaEndMarker=L.circleMarker(event.latlng,{radius:5,color:"#fff",weight:2,fillColor:"#1677ff",fillOpacity:1}).addTo(map);
+   document.getElementById("areaStatus").textContent="Área calculada. Toque em outro ponto para redimensionar o retângulo.";
+  }
+  updateAreaMeasurement();
+  return;
+ }
+
+ selectedPoint={lat:event.latlng.lat,lon:event.latlng.lng};
+ if(selectedMarker)map.removeLayer(selectedMarker);
+ selectedMarker=L.circleMarker(event.latlng,{radius:8,color:"#ffffff",weight:3,fillColor:"#ff8b36",fillOpacity:1}).addTo(map);
+ document.getElementById("distanceCard").classList.add("visible");
+ document.getElementById("distanceCard").classList.remove("expanded");
+ document.getElementById("expandIcon").textContent="＋";
+ document.getElementById("selectedLat").textContent=selectedPoint.lat.toFixed(5);
+ document.getElementById("selectedLon").textContent=selectedPoint.lon.toFixed(5);
+ if(userPosition){updateDistance();}else{
+  document.getElementById("distanceValue").textContent="--";
+  document.getElementById("distanceLabel").textContent="Ative sua localização GPS para medir";
+  document.getElementById("distanceFull").textContent="Localização não disponível";
+ }
+});
+
+function toggleAreaMode(){
+ areaMode=!areaMode;
+ const button=document.getElementById("areaModeButton");
+ button.textContent=areaMode?"CANCELAR MEDIÇÃO":"▱ MEDIR ÁREA NO MAPA";
+ document.getElementById("areaStatus").textContent=areaMode?"Modo ativo: toque em dois pontos do mapa. O segundo ponto ajusta o retângulo.":"Modo de área desativado.";
+ if(areaMode)map.getContainer().style.cursor="crosshair";
+ else map.getContainer().style.cursor="";
+}
+
+function updateAreaMeasurement(){
+ if(!areaStart||!areaEnd)return;
+ const south=Math.min(areaStart.lat,areaEnd.lat), north=Math.max(areaStart.lat,areaEnd.lat);
+ const west=Math.min(areaStart.lng,areaEnd.lng), east=Math.max(areaStart.lng,areaEnd.lng);
+ const bounds=[[south,west],[north,east]];
+ if(areaRectangle)map.removeLayer(areaRectangle);
+ areaRectangle=L.rectangle(bounds,{color:"#1677ff",weight:2,fillColor:"#4da3ff",fillOpacity:.20,dashArray:"6 4"}).addTo(map);
+ const height=haversine(south,west,north,west);
+ const width=haversine(south,west,south,east);
+ const area=height*width;
+ document.getElementById("areaValue").textContent=area.toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+ document.getElementById("areaDimensions").textContent=`Dimensões aproximadas: ${width.toFixed(2)} km × ${height.toFixed(2)} km`;
+ document.getElementById("areaCard").classList.add("visible");
+}
+
+function clearAreaMeasurement(){
+ [areaRectangle,areaStartMarker,areaEndMarker].forEach(layer=>{if(layer)map.removeLayer(layer);});
+ areaRectangle=areaStartMarker=areaEndMarker=null;
+ areaStart=areaEnd=null;
+ document.getElementById("areaCard").classList.remove("visible");
+ document.getElementById("areaValue").textContent="0,00";
+ document.getElementById("areaDimensions").textContent="Aguardando dois pontos no mapa";
+ document.getElementById("areaStatus").textContent=areaMode?"Modo ativo: toque em dois pontos do mapa.":"Medida apagada.";
+}
+
+function updateDistance(){
+
+ if(!userPosition||!selectedPoint)return;
+
+ const km=haversine(
+  userPosition.lat,
+  userPosition.lon,
+  selectedPoint.lat,
+  selectedPoint.lon
+ );
+
+ document.getElementById("distanceValue").textContent=
+  km.toFixed(2);
+
+ document.getElementById("distanceLabel").textContent=
+  "Distância da sua localização";
+
+ document.getElementById("distanceFull").textContent=
+  km.toFixed(2)+" quilômetros";
+
+ document.getElementById("selectedLat").textContent=
+  selectedPoint.lat.toFixed(5);
+
+ document.getElementById("selectedLon").textContent=
+  selectedPoint.lon.toFixed(5);
+}
+
+function expandDistanceCard(){
+
+ const card=document.getElementById("distanceCard");
+
+ card.classList.toggle("expanded");
+
+ document.getElementById("expandIcon").textContent=
+  card.classList.contains("expanded")?"−":"＋";
+}
+
+function clearSelection(){
+
+ if(selectedMarker)map.removeLayer(selectedMarker);
+
+ selectedMarker=null;
+ selectedPoint=null;
+
+ document.getElementById("distanceCard").classList.remove("visible");
+ document.getElementById("distanceCard").classList.remove("expanded");
+}
+
+// ============================================
+// MODO ECONOMIA
+// ============================================
+
+function refreshMapLayout(){
+ // Aguarda o navegador aplicar o novo layout antes de recalcular o viewport Leaflet.
+ requestAnimationFrame(()=>{
+  map.invalidateSize({pan:false, animate:false});
+  setTimeout(()=>map.invalidateSize({pan:false, animate:false}),180);
+  setTimeout(()=>map.invalidateSize({pan:false, animate:false}),500);
+  setTimeout(()=>map.invalidateSize({pan:false, animate:false}),900);
+ });
+}
+
+function toggleEconomy(){
+ document.body.classList.toggle("economy");
+ closeEconomyMenu();
+ refreshMapLayout();
+}
+
+function toggleEconomyMenu(){
+
+ document.getElementById("economyMenu").classList.toggle("open");
+}
+
+function closeEconomyMenu(){
+
+ document.getElementById("economyMenu").classList.remove("open");
+}
+
+// ============================================
+// PRODUTOS
+// ============================================
+
+function selectProduct(product){
+
+ pauseLoop();
+ currentProduct=product;
+
+ document.querySelectorAll(".product").forEach(el=>{
+  el.classList.toggle("active",el.dataset.product===product);
+ });
+
+ ["maxcappi","07km","05km","infrared"].forEach(id=>{
+  const button=document.getElementById("menu-"+id);
+  if(button)button.classList.toggle("selected",id===product);
+ });
+
+ document.getElementById("subtitle").textContent=
+  product==="infrared" ? "SATÉLITE REDEMET · INFRAVERMELHO REALÇADO" : "REDEMET · RADAR "+product.toUpperCase();
+ document.querySelector(".loop h3").textContent=product==="infrared"?"ANIMAÇÃO TEMPORAL · SATÉLITE INFRAVERMELHO REALÇADO":"ANIMAÇÃO TEMPORAL · RADAR";
+
+ refreshRadar();
+}
+
+// ============================================
+// DATA UTC E URL
+// ============================================
+
+function utcHour(){
+
+ const d=new Date();
+
+ return d.getUTCFullYear()+
+ String(d.getUTCMonth()+1).padStart(2,"0")+
+ String(d.getUTCDate()).padStart(2,"0")+
+ String(d.getUTCHours()).padStart(2,"0");
+}
+
+function buildURL(){
+ // Sem parâmetro area: a resposta consolidada da REDEMET inclui as estações disponíveis.
+ const params=new URLSearchParams({api_key:API_KEY,data:utcHour(),anima:"15"});
+ return API[currentProduct]+"?"+params.toString();
+}
+
+// Normaliza imagens de radar e recolhe coordenadas das estações mesmo
+// quando a API não disponibiliza uma imagem naquele horário.
+function parseRadarResponse(json){
+ const data=json?.data;
+ const radar=data?.radar;
+ if(!Array.isArray(radar))return {frames:[],stations:[]};
+ // A REDEMET organiza a resposta em grupos temporais. Cada grupo contém
+ // várias estações; manter o grupo inteiro evita uma estação por quadro.
+ const groups=Array.isArray(radar[0])?radar:[radar];
+ const stations=[];
+ const parsedFrames=[];
+ groups.forEach((group,index)=>{
+  const nodes=[];
+  function flatten(value){
+   if(Array.isArray(value)){value.forEach(flatten);return;}
+   if(value&&typeof value==="object"){
+    if(value.path||value.url||value.imagem||value.image||value.arquivo)nodes.push(value);
+    else Object.values(value).forEach(flatten);
+   }
+  }
+  flatten(group);
+  const images=[];
+  nodes.forEach(node=>{
+   const centerLat=Number(node.lat_center??node.latitude_center??node.latCenter);
+   const centerLon=Number(node.lon_center??node.longitude_center??node.lonCenter);
+   if(Number.isFinite(centerLat)&&Number.isFinite(centerLon)){
+    stations.push({id:String(node.id??node.localidade??node.nome??(index+1)),name:node.nome||node.localidade||"Radar meteorológico",lat:centerLat,lon:centerLon});
+   }
+   const path=node.path||node.url||node.imagem||node.image||node.arquivo;
+   const south=Number(node.lat_min??node.latitude_min??node.latMin);
+   const north=Number(node.lat_max??node.latitude_max??node.latMax);
+   const west=Number(node.lon_min??node.longitude_min??node.lonMin);
+   const east=Number(node.lon_max??node.longitude_max??node.lonMax);
+   if(path&&[south,north,west,east].every(Number.isFinite)){
+    images.push({url:/^https?:\/\//i.test(path)?path:new URL(path,"https://api-redemet.decea.mil.br").href,bounds:[[south,west],[north,east]]});
+   }
+  });
+  const time=data?.anima?.[index]||nodes.find(n=>n.data)?.data||("Quadro "+(index+1));
+  if(images.length)parsedFrames.push({time,images});
+ });
+ return {frames:parsedFrames,stations};
+}
+
+function parseSatelliteResponse(json){
+ const data=json?.data;
+ if(!data)return [];
+ const sat=Array.isArray(data.satelite)?data.satelite:(data.satelite?[data.satelite]:[]);
+ const box=data.lat_lon||data.latLon||{};
+ const south=Number(box.lat_min),north=Number(box.lat_max),west=Number(box.lon_min),east=Number(box.lon_max);
+ if(![south,north,west,east].every(Number.isFinite))return [];
+ return sat.map((item,i)=>{
+  const path=typeof item==="string"?item:(item?.path||item?.url||item?.imagem);
+  if(!path)return null;
+  return {time:item?.data||data.anima?.[i]||("Imagem "+(i+1)),images:[{url:/^https?:\/\//i.test(path)?path:new URL(path,"https://api-redemet.decea.mil.br").href,bounds:[[south,west],[north,east]]}]};
+ }).filter(Boolean);
+}
+
+function updateRadarStations(stations){
+ const unique=new Map();
+ stations.forEach(st=>{if(Number.isFinite(st.lat)&&Number.isFinite(st.lon))unique.set(st.id,st);});
+ radarStationGroup.clearLayers();
+ unique.forEach(st=>{
+  const icon=L.divIcon({className:"radar-station-icon",html:"📡",iconSize:[28,30],iconAnchor:[14,15]});
+  const marker=L.marker([st.lat,st.lon],{icon,keyboard:false});
+  marker.bindTooltip(st.name,{className:"radar-station-label",direction:"top",offset:[0,-10]});
+  marker.addTo(radarStationGroup);
+ });
+ radarStationsLoaded=true;
+}
+
+function setStatus(message,ok=false){
+ const el=document.getElementById("status");
+ el.textContent=(ok?"● ":"● ")+message;
+ el.style.background=ok?"#edfaf2":"#fff7e8";
+ el.style.color=ok?"#159657":"#a66b13";
+}
+
+function clearRadarLayers(){
+ radarGroup.clearLayers();
+ radarLayers=[];
+}
+
+function showFrame(index){
+ if(!frames.length) return;
+ currentFrame=(index+frames.length)%frames.length;
+ clearRadarLayers();
+
+ const frame=frames[currentFrame];
+ const opacity=Number(document.getElementById("opacity").value)/100;
+
+ frame.images.forEach(image=>{
+  // Preserva os pixels e a paleta fornecidos pela REDEMET. A opacidade
+  // respeita integralmente o controle do usuário, sem contraste artificial.
+  const layer=L.imageOverlay(image.url,image.bounds,{
+   opacity,
+   interactive:false,
+   pane:"radarImages",
+   crossOrigin:false,
+   className:"leaflet-radar-raster",
+   alt:"Imagem de refletividade meteorológica REDEMET"
+  });
+  layer.on("load",()=>{
+   const el=layer.getElement();
+   if(el){el.style.imageRendering="auto";el.style.maxWidth="none";}
+  });
+  layer.on("error",()=>{
+   const msg=document.getElementById("message");
+   if(msg)msg.textContent="Uma imagem de refletividade não carregou. Verifique a disponibilidade do arquivo na REDEMET.";
+  });
+  layer.addTo(radarGroup);
+  radarLayers.push(layer);
+ });
+
+ document.getElementById("timeline").max=Math.max(0,frames.length-1);
+ document.getElementById("timeline").value=currentFrame;
+ document.getElementById("frameCounter").textContent=frames.length+" quadro(s)";
+ document.getElementById("frameNumber").textContent=(currentFrame+1)+" / "+frames.length;
+ document.getElementById("frameDate").textContent=String(frame.time);
+ document.getElementById("message").textContent=
+  frame.images.length+(currentProduct==="infrared"?" imagem(ns) de satélite Infravermelho realçado no quadro selecionado.":" imagem(ns) de radar no quadro selecionado.");
+}
+
+async function refreshRadar(){
+ if(refreshing)return;
+ refreshing=true;
+ document.getElementById("message").textContent=currentProduct==="infrared"?"Consultando satélite Infravermelho realçado...":"Consultando todos os radares da REDEMET...";
+ setStatus("CONSULTANDO REDEMET");
+ try{
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),45000);
+  try{
+   if(currentProduct==="infrared"){
+    const response=await fetch(buildURL(),{signal:controller.signal,cache:"no-store"});
+    if(!response.ok)throw new Error("REDEMET respondeu HTTP "+response.status);
+    const json=await response.json();
+    if(json?.error||json?.status===false)throw new Error(json.message||"A API retornou um erro.");
+    const received=parseSatelliteResponse(json);
+    if(!received.length)throw new Error("A API não retornou imagens Infravermelho realçado com limites geográficos válidos.");
+    frames=received;
+    document.getElementById("subtitle").textContent="SATÉLITE REDEMET · INFRAVERMELHO REALÇADO";
+   }else{
+    // Uma única consulta consolidada evita 26 requisições concorrentes e
+    // preserva todas as estações dentro de cada quadro temporal.
+    const response=await fetch(buildURL(),{signal:controller.signal,cache:"no-store"});
+    if(!response.ok)throw new Error("REDEMET respondeu HTTP "+response.status);
+    const json=await response.json();
+    if(json?.error||json?.status===false)throw new Error(json.message||"A API retornou um erro.");
+    const parsed=parseRadarResponse(json);
+    updateRadarStations(parsed.stations);
+    if(!parsed.frames.length)throw new Error("A REDEMET não retornou imagens MAXCAPPI/CAPPI com coordenadas válidas para este horário.");
+    frames=parsed.frames.sort((a,b)=>String(a.time).localeCompare(String(b.time)));
+    const totalImages=frames.reduce((sum,frame)=>sum+frame.images.length,0);
+    document.getElementById("subtitle").textContent="REDEMET · TODOS OS RADARES DO BRASIL";
+    document.getElementById("message").textContent=totalImages+" imagens recebidas de "+parsed.stations.length+" estações identificadas.";
+   }
+   currentFrame=0;
+   showFrame(0);
+   if(currentProduct==="infrared")document.getElementById("message").textContent="Infravermelho realçado: "+frames.length+" imagem(ns) recebida(s).";
+   setStatus("MAPA E IMAGENS ATIVOS",true);
+  }finally{clearTimeout(timeout);}
+ }catch(error){
+  document.getElementById("message").textContent="Não foi possível carregar o produto: "+(error.name==="AbortError"?"tempo limite excedido":error.message)+". O mapa-base permanece disponível.";
+  setStatus("MAPA ATIVO · PRODUTO INDISPONÍVEL");
+ }finally{refreshing=false;}
+}
+
+function nextFrame(){
+ if(frames.length) showFrame(currentFrame+1);
+}
+function previousFrame(){
+ if(frames.length) showFrame(currentFrame-1);
+}
+function pauseLoop(){
+ if(loopTimer){clearInterval(loopTimer);loopTimer=null;}
+}
+function startLoop(){
+ if(!frames.length){
+  document.getElementById("message").textContent="Carregue imagens antes de iniciar a animação.";
+  return;
+ }
+ pauseLoop();
+ const speed=Number(document.getElementById("speed").value)||800;
+ loopTimer=setInterval(nextFrame,speed);
+}
+function stopLoop(){
+ pauseLoop();
+ if(frames.length) showFrame(0);
+}
+document.getElementById("timeline").addEventListener("input",event=>{
+ if(frames.length) showFrame(Number(event.target.value));
+});
+document.getElementById("opacity").addEventListener("input",event=>{
+ const opacity=Number(event.target.value)/100;
+ radarLayers.forEach(layer=>layer.setOpacity(opacity));
+});
+document.getElementById("speed").addEventListener("change",()=>{
+ if(loopTimer) startLoop();
+});
+document.getElementById("autoRefresh").addEventListener("change",event=>{
+ if(event.target.checked){
+  refreshRadar();
+  window.radarAutoRefresh=setInterval(refreshRadar,5*60*1000);
+ }else{
+  clearInterval(window.radarAutoRefresh);
+  window.radarAutoRefresh=null;
+ }
+});
+
+// ============================================
+// RAIOS E RELÂMPAGOS · GOES-19 GLM
+// ============================================
+function lightningEnergy(feature){
+ const props=feature?.properties||feature||{};
+ const value=Number(props.flash_energy??props.energy??props.intensity??props.radiant_energy);
+ return Number.isFinite(value)&&value>=0?value:null;
+}
+
+function lightningCoordinates(feature){
+ if(feature?.geometry?.type==="Point"&&Array.isArray(feature.geometry.coordinates)){
+  return {lon:Number(feature.geometry.coordinates[0]),lat:Number(feature.geometry.coordinates[1])};
+ }
+ const p=feature?.properties||feature||{};
+ return {lat:Number(p.flash_lat??p.latitude??p.lat),lon:Number(p.flash_lon??p.longitude??p.lon)};
+}
+
+function lightningColor(value,sorted){
+ if(value===null||!sorted.length)return "#f28c28";
+ const rank=sorted.filter(v=>v<=value).length/Math.max(1,sorted.length);
+ // Faixas relativas de energia das descargas recentes, não intensidade de chuva.
+ if(rank>=.75)return "#e33434";
+ if(rank>=.50)return "#f28c28";
+ if(rank>=.25)return "#f4d43b";
+ return "#25a85a";
+}
+
+function renderLightning(data){
+ lightningGroup.clearLayers();
+ const features=Array.isArray(data)?data:(data?.features||data?.data||[]);
+ const valid=features.map(feature=>({feature,point:lightningCoordinates(feature),energy:lightningEnergy(feature)}))
+  .filter(item=>Number.isFinite(item.point.lat)&&Number.isFinite(item.point.lon)&&Math.abs(item.point.lat)<=90&&Math.abs(item.point.lon)<=180);
+ // Agrupa descargas muito próximas para evitar milhares de marcadores DOM travando o mapa.
+ // A célula mantém a descarga de maior energia e informa quantos flashes foram agrupados.
+ const cells=new Map();
+ const cellSize=0.075;
+ for(const item of valid){
+  const key=Math.floor(item.point.lat/cellSize)+":"+Math.floor(item.point.lon/cellSize);
+  const old=cells.get(key);
+  if(!old || (item.energy??-1)>(old.energy??-1)) cells.set(key,{...item,count:(old?.count||0)+1});
+  else old.count++;
+ }
+ const reduced=[...cells.values()];
+ const energies=reduced.map(item=>item.energy).filter(value=>value!==null).sort((a,b)=>a-b);
+ const opacity=Number(document.getElementById("lightningOpacity").value)/100;
+ reduced.forEach(item=>{
+  const color=lightningColor(item.energy,energies);
+  const marker=L.circleMarker([item.point.lat,item.point.lon],{
+   renderer:lightningRenderer,radius:item.count>1?6:4.5,color:"#ffffff",weight:1.1,
+   fillColor:color,fillOpacity:opacity,opacity:Math.max(.45,opacity)
+  });
+  const energyText=item.energy===null?"Energia não informada":`Energia GLM: ${item.energy.toExponential(2)} J`;
+  const time=item.feature?.properties?.time??item.feature?.properties?.timestamp??"Horário não informado";
+  marker.bindPopup(`<b>Descarga elétrica detectada</b><br>${energyText}<br>${item.count} descarga(s) na célula<br>${time}`);
+  marker.addTo(lightningGroup);
+ });
+ lightningFeatures=reduced;
+ document.getElementById("lightningStatus").textContent=valid.length
+  ?`${valid.length} descargas recebidas; ${reduced.length} áreas desenhadas no mapa. Fonte: GOES-19 GLM.`
+  :"Nenhuma descarga retornada no período consultado.";
+}
+
+async function refreshLightning(){
+ if(!lightningEnabled || lightningRefreshing)return;
+ lightningRefreshing=true;
+ const status=document.getElementById("lightningStatus");
+ lightningAbort=new AbortController();
+ const timeout=setTimeout(()=>lightningAbort?.abort(),25000);
+ try{
+  const response=await fetch(LIGHTNING_API+"?satellite=19&minutes=10",{
+   cache:"no-store",signal:lightningAbort.signal,headers:{"Accept":"application/geo+json, application/json"}
+  });
+  if(!response.ok)throw new Error("HTTP "+response.status);
+  const data=await response.json();
+  if(data?.error)throw new Error(data.detail||data.error);
+  renderLightning(data);
+ }catch(error){
+  status.textContent=error.name==="AbortError"?"Consulta GOES-19 excedeu 25 segundos. Mantendo os últimos dados.":"Falha ao atualizar descargas: "+error.message;
+ }finally{
+  clearTimeout(timeout);lightningRefreshing=false;lightningAbort=null;
+ }
+}
+
+function toggleLightning(){
+ lightningEnabled=!lightningEnabled;
+ const button=document.getElementById("lightningToggle");
+ if(lightningEnabled){
+  lightningGroup.addTo(map);
+  button.textContent="DESATIVAR RAIOS E RELÂMPAGOS";
+  button.classList.remove("primary");button.classList.add("danger");
+  document.getElementById("lightningStatus").textContent="Conectando à fonte GOES-19 GLM...";
+  refreshLightning();
+  lightningTimer=setInterval(refreshLightning,60000);
+ }else{
+  if(lightningTimer)clearInterval(lightningTimer);
+  lightningTimer=null;
+  if(lightningAbort)lightningAbort.abort();
+  lightningGroup.clearLayers();
+  map.removeLayer(lightningGroup);
+  button.textContent="ATIVAR RAIOS E RELÂMPAGOS";
+  button.classList.remove("danger");button.classList.add("primary");
+  document.getElementById("lightningStatus").textContent="Camada desligada.";
+ }
+}
+
+document.getElementById("lightningOpacity").addEventListener("input",()=>{
+ if(lightningEnabled&&lightningFeatures.length){
+  const opacity=Number(document.getElementById("lightningOpacity").value)/100;
+  lightningGroup.eachLayer(layer=>layer.setStyle({fillOpacity:opacity,opacity:Math.max(.45,opacity)}));
+ }
+});
+
+// Inicialização independente da API meteorológica.
+function ensureMapVisible(){
+ if(window.L && map){
+  map.invalidateSize(true);
+ }
+}
+map.whenReady(()=>{
+ setStatus("MAPA BASE ATIVO",true);
+ document.getElementById("message").textContent=
+  "Mapa pronto. A refletividade é carregada separadamente.";
+ setTimeout(ensureMapVisible,250);
+ setTimeout(ensureMapVisible,1000);
+});
+window.addEventListener("resize",()=>setTimeout(ensureMapVisible,150));
+window.addEventListener("orientationchange",()=>setTimeout(refreshMapLayout,350));
+window.addEventListener("pageshow",()=>setTimeout(refreshMapLayout,150));
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)refreshMapLayout();});
+
+window.addEventListener("orientationchange",()=>setTimeout(ensureMapVisible,500));
+document.addEventListener("visibilitychange",()=>{if(!document.hidden)setTimeout(ensureMapVisible,250);});
+
+// Carrega o radar sem bloquear nem recriar o mapa-base.
+refreshRadar();
+</script>
+</body>
+</html>
