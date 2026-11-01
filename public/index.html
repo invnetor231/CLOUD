@@ -230,26 +230,61 @@ box-shadow:0 10px 35px #193b6022;
 .economy-menu button{width:100%;margin-bottom:7px;text-align:left}
 .economy-menu .selected{background:#e8f2ff;color:#1269d9}
 
-/* TELA CHEIA */
-body.economy{overflow:hidden}
-body.economy header,
+/* MODO ECONOMIA: mantém os elementos ancestrais do mapa visíveis */
+body.economy{
+  overflow:hidden;
+  width:100%;
+  height:100%;
+  overscroll-behavior:none;
+}
+body.economy header{display:none}
 body.economy main{
-display:none;
+  display:block;
+  position:fixed;
+  inset:0;
+  width:100%;
+  height:100dvh;
+  max-width:none;
+  margin:0;
+  padding:0;
+  overflow:hidden;
+  z-index:1;
+}
+body.economy .dashboard{display:block;width:100%;height:100%}
+body.economy .map-card{
+  display:block;
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  min-width:0;
+  border:0;
+  border-radius:0;
+  box-shadow:none;
+  overflow:hidden;
 }
 body.economy #map{
-position:fixed;
-inset:0;
-width:100%;
-height:100dvh;
-min-height:0;
-z-index:1;
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  min-height:0;
+  z-index:1;
 }
+body.economy .side,
+body.economy .loop{display:none!important}
 body.economy .economy-toggle{display:block}
 body.economy .distance-card{top:72px;left:12px}
-body.economy .leaflet-control-attribution{
-font-size:8px!important;
-}
+body.economy .leaflet-control-attribution{font-size:8px!important}
 body.economy .map-head{display:none}
+body.economy ~ .footer{display:none!important}
+
+/* Renderização raster sem filtros que alterem a aparência dos dados */
+.leaflet-image-layer,
+.leaflet-radar-raster{
+  image-rendering:auto!important;
+  filter:none!important;
+}
 
 @media(max-width:850px){
 header{padding:0 12px}
@@ -472,6 +507,7 @@ let currentFrame=0;
 let loopTimer=null;
 let radarLayers=[];
 let refreshing=false;
+let frameRenderToken=0;
 const radarStationGroup=L.layerGroup();
 let radarStationsLoaded=false;
 
@@ -724,7 +760,12 @@ function toggleEconomy(){
 
  closeEconomyMenu();
 
- setTimeout(()=>map.invalidateSize(),300);
+ // Recalcula o mapa depois que o navegador aplicar o novo layout.
+ requestAnimationFrame(()=>{
+  requestAnimationFrame(()=>{
+   map.invalidateSize({pan:false,animate:false});
+  });
+ });
 }
 
 function toggleEconomyMenu(){
@@ -864,22 +905,52 @@ function clearRadarLayers(){
  radarLayers=[];
 }
 
-function showFrame(index){
+async function showFrame(index){
  if(!frames.length) return;
+ const renderToken=++frameRenderToken;
  currentFrame=(index+frames.length)%frames.length;
- clearRadarLayers();
 
  const frame=frames[currentFrame];
  const opacity=Number(document.getElementById("opacity").value)/100;
 
- frame.images.forEach(image=>{
-  const layer=L.imageOverlay(image.url,image.bounds,{
-   opacity,
-   interactive:false
-  });
-  layer.addTo(radarGroup);
-  radarLayers.push(layer);
- });
+ // Mantém o quadro anterior visível enquanto as novas imagens carregam.
+ const nextLayers=frame.images.map(image=>L.imageOverlay(
+  image.url,image.bounds,
+  {opacity,interactive:false,className:"leaflet-radar-raster"}
+ ));
+ nextLayers.forEach(layer=>layer.addTo(radarGroup));
+
+ const loadResults=await Promise.all(nextLayers.map(layer=>new Promise(resolve=>{
+  let finished=false;
+  const finish=ok=>{
+   if(finished)return;
+   finished=true;
+   clearTimeout(timer);
+   layer.off("load",onLoad);
+   layer.off("error",onError);
+   resolve(ok);
+  };
+  const onLoad=()=>finish(true);
+  const onError=()=>finish(false);
+  const timer=setTimeout(()=>finish(false),15000);
+  layer.once("load",onLoad);
+  layer.once("error",onError);
+ })));
+
+ // Descarta carregamentos antigos quando o usuário avança rapidamente.
+ if(renderToken!==frameRenderToken){
+  nextLayers.forEach(layer=>radarGroup.removeLayer(layer));
+  return;
+ }
+
+ if(loadResults.every(Boolean)){
+  radarLayers.forEach(layer=>radarGroup.removeLayer(layer));
+  radarLayers=nextLayers;
+ }else{
+  nextLayers.forEach(layer=>radarGroup.removeLayer(layer));
+  document.getElementById("message").textContent=
+   "Falha ao carregar uma ou mais imagens. O quadro anterior foi mantido.";
+ }
 
  document.getElementById("timeline").max=Math.max(0,frames.length-1);
  document.getElementById("timeline").value=currentFrame;
@@ -1072,7 +1143,9 @@ document.getElementById("lightningOpacity").addEventListener("input",()=>{
 // Inicialização independente da API meteorológica.
 function ensureMapVisible(){
  if(window.L && map){
-  map.invalidateSize(true);
+  requestAnimationFrame(()=>{
+   map.invalidateSize({pan:false,animate:false});
+  });
  }
 }
 map.whenReady(()=>{
