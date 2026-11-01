@@ -519,6 +519,10 @@ let lightningEnabled=false;
 let lightningTimer=null;
 let lightningGroup=L.layerGroup();
 let lightningFeatures=[];
+let lightningLayers=[];
+let lightningRequest=null;
+let lightningLastSignature="";
+const lightningCanvas=L.canvas({padding:0.5});
 
 // ============================================
 // MAPA
@@ -1064,32 +1068,64 @@ function lightningCoordinates(feature){
  return {lat:Number(p.flash_lat??p.latitude??p.lat),lon:Number(p.flash_lon??p.longitude??p.lon)};
 }
 
-function lightningColor(value,sorted){
- if(value===null||!sorted.length)return "#f28c28";
- const rank=sorted.filter(v=>v<=value).length/Math.max(1,sorted.length);
- // Faixas relativas de energia das descargas recentes, não intensidade de chuva.
- if(rank>=.75)return "#e33434";
- if(rank>=.50)return "#f28c28";
- if(rank>=.25)return "#f4d43b";
+function lightningColor(value,limits){
+ if(value===null)return "#f28c28";
+ if(value>=limits.high)return "#e33434";
+ if(value>=limits.medium)return "#f28c28";
+ if(value>=limits.low)return "#f4d43b";
  return "#25a85a";
 }
 
+function lightningQuantile(sorted,ratio){
+ if(!sorted.length)return 0;
+ return sorted[Math.min(sorted.length-1,Math.floor((sorted.length-1)*ratio))];
+}
+
 function renderLightning(data){
- lightningGroup.clearLayers();
  const features=Array.isArray(data)?data:(data?.features||data?.data||[]);
- const valid=features.map(feature=>({feature,point:lightningCoordinates(feature),energy:lightningEnergy(feature)}))
-  .filter(item=>Number.isFinite(item.point.lat)&&Number.isFinite(item.point.lon)&&Math.abs(item.point.lat)<=90&&Math.abs(item.point.lon)<=180);
+ const valid=[];
+ for(const feature of features){
+  const point=lightningCoordinates(feature);
+  if(Number.isFinite(point.lat)&&Number.isFinite(point.lon)&&Math.abs(point.lat)<=90&&Math.abs(point.lon)<=180){
+   valid.push({feature,point,energy:lightningEnergy(feature)});
+  }
+ }
+ const signature=valid.map(item=>{
+  const p=item.feature?.properties||{};
+  return `${p.id??p.flash_id??p.time??p.timestamp??""}:${item.point.lat.toFixed(4)},${item.point.lon.toFixed(4)}:${item.energy??""}`;
+ }).join("|");
+ if(signature===lightningLastSignature)return;
+ lightningLastSignature=signature;
+
  const energies=valid.map(item=>item.energy).filter(value=>value!==null).sort((a,b)=>a-b);
+ const limits={
+  low:lightningQuantile(energies,.25),
+  medium:lightningQuantile(energies,.50),
+  high:lightningQuantile(energies,.75)
+ };
  const opacity=Number(document.getElementById("lightningOpacity").value)/100;
- valid.forEach(item=>{
-  const color=lightningColor(item.energy,energies);
-  const icon=L.divIcon({className:"",html:`<div class="lightning-marker" style="background:${color};opacity:${opacity}">⚡</div>`,iconSize:[27,27],iconAnchor:[13,13]});
-  const marker=L.marker([item.point.lat,item.point.lon],{icon,keyboard:false,opacity});
+
+ lightningGroup.clearLayers();
+ lightningLayers=[];
+ for(const item of valid){
+  const color=lightningColor(item.energy,limits);
+  const marker=L.circleMarker([item.point.lat,item.point.lon],{
+   renderer:lightningCanvas,
+   radius:5,
+   color,
+   weight:1,
+   opacity,
+   fillColor:color,
+   fillOpacity:opacity,
+   bubblingMouseEvents:false
+  });
   const energyText=item.energy===null?"Energia não informada":`Energia GLM: ${item.energy.toExponential(2)} J`;
-  const time=item.feature?.properties?.time??item.feature?.properties?.timestamp??"Horário não informado";
+  const props=item.feature?.properties||{};
+  const time=props.time??props.timestamp??"Horário não informado";
   marker.bindPopup(`<b>Descarga elétrica detectada</b><br>${energyText}<br>${time}`);
   marker.addTo(lightningGroup);
- });
+  lightningLayers.push(marker);
+ }
  lightningFeatures=valid;
  document.getElementById("lightningStatus").textContent=valid.length
   ?`${valid.length} descarga(s) recebida(s) do GOES-19 GLM. Cores indicam energia relativa entre as descargas do conjunto.`
@@ -1097,19 +1133,24 @@ function renderLightning(data){
 }
 
 async function refreshLightning(){
- if(!lightningEnabled)return;
+ if(!lightningEnabled||lightningRequest)return;
  const status=document.getElementById("lightningStatus");
+ lightningRequest=new AbortController();
+ const timeout=setTimeout(()=>lightningRequest?.abort(),20000);
  try{
-  const response=await fetch(LIGHTNING_API+"?satellite=19&minutes=10",{cache:"no-store"});
+  const response=await fetch(LIGHTNING_API+"?satellite=19&minutes=10",{cache:"no-store",signal:lightningRequest.signal});
   if(!response.ok){
    let detail="HTTP "+response.status;
    try{const body=await response.json();detail=body.detail||body.error||detail;}catch{}
    throw new Error(detail);
   }
   const data=await response.json();
-  renderLightning(data);
+  if(lightningEnabled)renderLightning(data);
  }catch(error){
-  status.textContent="Falha ao consultar /api/lightning: "+error.message;
+  if(error.name!=="AbortError")status.textContent="Falha ao consultar /api/lightning: "+error.message;
+ }finally{
+  clearTimeout(timeout);
+  lightningRequest=null;
  }
 }
 
@@ -1126,7 +1167,12 @@ function toggleLightning(){
  }else{
   if(lightningTimer)clearInterval(lightningTimer);
   lightningTimer=null;
+  if(lightningRequest)lightningRequest.abort();
+  lightningRequest=null;
   lightningGroup.clearLayers();
+  lightningLayers=[];
+  lightningFeatures=[];
+  lightningLastSignature="";
   map.removeLayer(lightningGroup);
   button.textContent="ATIVAR RAIOS E RELÂMPAGOS";
   button.classList.remove("danger");button.classList.add("primary");
@@ -1134,10 +1180,9 @@ function toggleLightning(){
  }
 }
 
-document.getElementById("lightningOpacity").addEventListener("input",()=>{
- if(lightningEnabled&&lightningFeatures.length){
-  renderLightning(lightningFeatures.map(item=>item.feature));
- }
+document.getElementById("lightningOpacity").addEventListener("input",event=>{
+ const opacity=Number(event.target.value)/100;
+ lightningLayers.forEach(layer=>layer.setStyle({opacity,fillOpacity:opacity}));
 });
 
 // Inicialização independente da API meteorológica.
