@@ -639,6 +639,7 @@ let lightningLastSignature="";
 let lightningLoopTimer=null;
 let lightningLoopIndex=0;
 let lightningTimedFeatures=[];
+let lightningFlashTimer=null;
 const lightningCanvas=L.canvas({padding:0.5});
 
 // Sistema de Tempo Severo Convectivo (STSC) da REDEMET/DECEA.
@@ -1668,38 +1669,61 @@ function renderLightning(data){
  if(lightningLoopTimer)stopLightningLoop();
 }
 
+function showLightningFlash(item){
+ // Pulso breve no ponto da descarga, sem manter uma trilha de raios antigos.
+ const color=lightningColor(item.energy,{low:1,medium:2,high:3});
+ const latlng=[item.point.lat,item.point.lon];
+ const flash=L.circleMarker(latlng,{
+  renderer:lightningCanvas,radius:8,color:"#ffffff",weight:2,
+  opacity:1,fillColor:color,fillOpacity:1,bubblingMouseEvents:false
+ }).addTo(lightningGroup);
+ const halo=L.circleMarker(latlng,{
+  renderer:lightningCanvas,radius:15,color:color,weight:2,
+  opacity:.9,fillOpacity:0,bubblingMouseEvents:false
+ }).addTo(lightningGroup);
+ const props=item.feature?.properties||{};
+ const stamp=props.time??props.timestamp??props.flash_time??"Horário não informado";
+ const energy=item.energy===null?"Energia não informada":`Energia GLM: ${item.energy.toExponential(2)} J`;
+ flash.bindPopup(`<b>Descarga elétrica GOES-19 GLM</b><br>${energy}<br>${stamp}`);
+ setTimeout(()=>{
+  if(lightningGroup.hasLayer(flash))lightningGroup.removeLayer(flash);
+  if(lightningGroup.hasLayer(halo))lightningGroup.removeLayer(halo);
+ },280);
+}
+
 function startLightningLoop(){
  if(!lightningEnabled){
   document.getElementById("lightningStatus").textContent="Ative primeiro a camada de raios.";
   return;
  }
  if(lightningLoopTimer)stopLightningLoop();
- if(lightningTimedFeatures.length<2){
-  document.getElementById("lightningStatus").textContent="Não há pelo menos duas descargas com horário válido para montar o loop.";
+ if(lightningTimedFeatures.length<1){
+  document.getElementById("lightningStatus").textContent="Não há descargas com horário válido do GOES-19 GLM para animar.";
   return;
  }
+ lightningGroup.clearLayers();
  lightningLoopIndex=0;
  const start=document.getElementById("lightningLoopStart");
  const stop=document.getElementById("lightningLoopStop");
  start.disabled=true;stop.disabled=false;
  const step=()=>{
   if(!lightningEnabled||!lightningTimedFeatures.length){stopLightningLoop();return;}
-  const lastTime=lightningTimedFeatures[lightningLoopIndex].timeMs;
-  const visible=lightningTimedFeatures.filter(item=>item.timeMs<=lastTime);
-  drawLightningFeatures(visible);
-  const date=new Date(lastTime);
+  const item=lightningTimedFeatures[lightningLoopIndex];
+  showLightningFlash(item);
+  const date=new Date(item.timeMs);
   document.getElementById("lightningStatus").textContent=
-   `Loop GOES-19 GLM · ${visible.length}/${lightningTimedFeatures.length} descargas · ${date.toLocaleTimeString("pt-BR")}`;
+   `GOES-19 GLM · descarga ${lightningLoopIndex+1}/${lightningTimedFeatures.length} · ${date.toLocaleTimeString("pt-BR",{hour12:false})}.${String(date.getMilliseconds()).padStart(3,"0")} · pulso temporário`;
   lightningLoopIndex++;
   if(lightningLoopIndex>=lightningTimedFeatures.length)lightningLoopIndex=0;
+  const delay=Math.max(100,Number(document.getElementById("lightningLoopSpeed").value)||700);
+  lightningLoopTimer=setTimeout(step,delay);
  };
  step();
- lightningLoopTimer=setInterval(step,Number(document.getElementById("lightningLoopSpeed").value)||700);
 }
-
 function stopLightningLoop(){
- if(lightningLoopTimer)clearInterval(lightningLoopTimer);
+ if(lightningLoopTimer)clearTimeout(lightningLoopTimer);
  lightningLoopTimer=null;
+ lightningGroup.clearLayers();
  document.getElementById("lightningLoopStart").disabled=false;
  document.getElementById("lightningLoopStop").disabled=true;
  if(lightningFeatures.length)drawLightningFeatures(lightningFeatures);
