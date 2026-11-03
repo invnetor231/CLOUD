@@ -817,7 +817,7 @@ async function refreshTornadoRisk(){
   "wind_speed_925hPa","wind_direction_925hPa",
   "wind_speed_500hPa","wind_direction_500hPa"
  ].join(",");
- const url=`${TORNADO_RISK_API}?latitude=${encodeURIComponent(latitudes)}&longitude=${encodeURIComponent(longitudes)}&hourly=${hourly}&forecast_days=2&timezone=auto&wind_speed_unit=kmh`;
+ const url=`/.netlify/functions/weather-proxy?endpoint=gfs&latitude=${encodeURIComponent(latitudes)}&longitude=${encodeURIComponent(longitudes)}&hourly=${encodeURIComponent(hourly)}&forecast_days=2&timezone=auto&wind_speed_unit=kmh`;
  try{
   const response=await fetch(url,{signal:tornadoRiskAbort.signal,cache:"no-store"});
   if(!response.ok)throw new Error(`Open-Meteo HTTP ${response.status}`);
@@ -980,10 +980,24 @@ async function refreshForecastProduct(kind){
  const lat=points.map(p=>p.lat.toFixed(3)).join(",");
  const lon=points.map(p=>p.lon.toFixed(3)).join(",");
  const vars=kind==="storms"?"cape,showers,weather_code":"precipitation";
- const url=`${TORNADO_RISK_API}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=${vars}&forecast_days=2&timezone=auto`;
+ const url=`/.netlify/functions/weather-proxy?endpoint=gfs&latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=${encodeURIComponent(vars)}&forecast_days=2&timezone=auto`;
  try{
-  const response=await fetch(url,{signal:product.abort.signal,cache:"no-store"});
-  if(!response.ok)throw new Error(`Open-Meteo HTTP ${response.status}`);
+  let response=null;
+  let usedFallback=false;
+  let primaryError=null;
+  try{
+   response=await fetch(url,{signal:product.abort.signal,cache:"no-store"});
+   if(!response.ok)throw new Error(`GFS HTTP ${response.status}`);
+  }catch(primary){
+   if(primary.name==="AbortError")throw primary;
+   primaryError=primary;
+   // Segunda rota: API Forecast com o modelo GFS Seamless explicitamente selecionado.
+   // Mantém as mesmas coordenadas, variáveis e período solicitados pelo produto.
+   const fallbackUrl=url.replace("endpoint=gfs","endpoint=forecast")+"&models=gfs_seamless";
+   response=await fetch(fallbackUrl,{signal:product.abort.signal,cache:"no-store"});
+   if(!response.ok)throw new Error(`GFS indisponível (${primary.message}); rota alternativa HTTP ${response.status}`);
+   usedFallback=true;
+  }
   const payload=await response.json();
   const datasets=Array.isArray(payload)?payload:[payload];
   const times=datasets.find(d=>Array.isArray(d.hourly?.time))?.hourly.time;
@@ -993,8 +1007,16 @@ async function refreshForecastProduct(kind){
   let idx=times.findIndex(t=>new Date(t).getTime()>=now);
   if(idx<0)idx=0;
   renderForecastHour(kind,idx);
+  if(usedFallback){
+   status.textContent="Previsão carregada pela rota alternativa Open-Meteo com GFS Seamless. "+status.textContent;
+  }
  }catch(error){
-  if(error.name!=="AbortError")status.textContent=`Falha na consulta: ${error.message}`;
+  if(error.name!=="AbortError"){
+   const detail=error.message==="Failed to fetch"
+    ?"Falha de conexão com o serviço meteorológico. Verifique a internet, bloqueios de rede ou CORS e tente novamente."
+    :error.message;
+   status.textContent=`Produto indisponível: ${detail}. O mapa-base permanece disponível.`;
+  }
  }finally{product.busy=false;}
 }
 function toggleForecastProduct(kind){
