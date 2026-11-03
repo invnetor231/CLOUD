@@ -422,6 +422,16 @@ Toque em qualquer local do mapa para medir a distância em linha reta a partir d
 <button class="primary" id="lightningToggle" style="width:100%;margin-top:10px" onclick="toggleLightning()">ATIVAR RAIOS E RELÂMPAGOS</button>
 <label>OPACIDADE DOS MARCADORES</label>
 <input type="range" id="lightningOpacity" min="20" max="100" value="100">
+<div style="display:flex;gap:7px;margin-top:9px">
+ <button class="secondary" id="lightningLoopStart" type="button" onclick="startLightningLoop()" style="flex:1">▶ INICIAR LOOP</button>
+ <button class="secondary" id="lightningLoopStop" type="button" onclick="stopLightningLoop()" style="flex:1" disabled>■ PARAR</button>
+</div>
+<label>VELOCIDADE DO LOOP</label>
+<select id="lightningLoopSpeed" style="width:100%">
+ <option value="1200">Lento</option>
+ <option value="700" selected>Normal</option>
+ <option value="350">Rápido</option>
+</select>
 <div class="lightning-legend">
 <span><i class="lightning-dot" style="background:#25a85a"></i>Baixa</span>
 <span><i class="lightning-dot" style="background:#f4d43b"></i>Moderada</span>
@@ -626,6 +636,9 @@ let lightningFeatures=[];
 let lightningLayers=[];
 let lightningRequest=null;
 let lightningLastSignature="";
+let lightningLoopTimer=null;
+let lightningLoopIndex=0;
+let lightningTimedFeatures=[];
 const lightningCanvas=L.canvas({padding:0.5});
 
 // Sistema de Tempo Severo Convectivo (STSC) da REDEMET/DECEA.
@@ -1592,13 +1605,52 @@ function lightningQuantile(sorted,ratio){
  return sorted[Math.min(sorted.length-1,Math.floor((sorted.length-1)*ratio))];
 }
 
+function lightningTimeMs(feature){
+ const p=feature?.properties||feature||{};
+ const raw=p.time??p.timestamp??p.flash_time??p.datetime??p.observation_time;
+ if(raw===undefined||raw===null||raw==="")return null;
+ if(typeof raw==="number"||/^\d+(\.\d+)?$/.test(String(raw))){
+  const n=Number(raw);
+  if(!Number.isFinite(n))return null;
+  return n<1e12?n*1000:n;
+ }
+ const parsed=Date.parse(raw);
+ return Number.isFinite(parsed)?parsed:null;
+}
+
+function drawLightningFeatures(items){
+ const energies=items.map(item=>item.energy).filter(value=>value!==null).sort((a,b)=>a-b);
+ const limits={
+  low:lightningQuantile(energies,.25),
+  medium:lightningQuantile(energies,.50),
+  high:lightningQuantile(energies,.75)
+ };
+ const opacity=Number(document.getElementById("lightningOpacity").value)/100;
+ lightningGroup.clearLayers();
+ lightningLayers=[];
+ for(const item of items){
+  const color=lightningColor(item.energy,limits);
+  const marker=L.circleMarker([item.point.lat,item.point.lon],{
+   renderer:lightningCanvas,radius:5,color,weight:1,opacity,
+   fillColor:color,fillOpacity:opacity,bubblingMouseEvents:false
+  });
+  const energyText=item.energy===null?"Energia não informada":`Energia GLM: ${item.energy.toExponential(2)} J`;
+  const props=item.feature?.properties||{};
+  const time=props.time??props.timestamp??props.flash_time??"Horário não informado";
+  marker.bindPopup(`<b>Descarga elétrica detectada</b><br>${energyText}<br>${time}`);
+  marker.addTo(lightningGroup);
+  lightningLayers.push(marker);
+ }
+ lightningFeatures=items;
+}
+
 function renderLightning(data){
  const features=Array.isArray(data)?data:(data?.features||data?.data||[]);
  const valid=[];
  for(const feature of features){
   const point=lightningCoordinates(feature);
   if(Number.isFinite(point.lat)&&Number.isFinite(point.lon)&&Math.abs(point.lat)<=90&&Math.abs(point.lon)<=180){
-   valid.push({feature,point,energy:lightningEnergy(feature)});
+   valid.push({feature,point,energy:lightningEnergy(feature),timeMs:lightningTimeMs(feature)});
   }
  }
  const signature=valid.map(item=>{
@@ -1607,40 +1659,50 @@ function renderLightning(data){
  }).join("|");
  if(signature===lightningLastSignature)return;
  lightningLastSignature=signature;
-
- const energies=valid.map(item=>item.energy).filter(value=>value!==null).sort((a,b)=>a-b);
- const limits={
-  low:lightningQuantile(energies,.25),
-  medium:lightningQuantile(energies,.50),
-  high:lightningQuantile(energies,.75)
- };
- const opacity=Number(document.getElementById("lightningOpacity").value)/100;
-
- lightningGroup.clearLayers();
- lightningLayers=[];
- for(const item of valid){
-  const color=lightningColor(item.energy,limits);
-  const marker=L.circleMarker([item.point.lat,item.point.lon],{
-   renderer:lightningCanvas,
-   radius:5,
-   color,
-   weight:1,
-   opacity,
-   fillColor:color,
-   fillOpacity:opacity,
-   bubblingMouseEvents:false
-  });
-  const energyText=item.energy===null?"Energia não informada":`Energia GLM: ${item.energy.toExponential(2)} J`;
-  const props=item.feature?.properties||{};
-  const time=props.time??props.timestamp??"Horário não informado";
-  marker.bindPopup(`<b>Descarga elétrica detectada</b><br>${energyText}<br>${time}`);
-  marker.addTo(lightningGroup);
-  lightningLayers.push(marker);
- }
- lightningFeatures=valid;
- document.getElementById("lightningStatus").textContent=valid.length
-  ?`${valid.length} descarga(s) recebida(s) do GOES-19 GLM. Cores indicam energia relativa entre as descargas do conjunto.`
+ lightningTimedFeatures=valid.filter(item=>item.timeMs!==null).sort((a,b)=>a.timeMs-b.timeMs);
+ drawLightningFeatures(valid);
+ const status=document.getElementById("lightningStatus");
+ status.textContent=valid.length
+  ?`${valid.length} descarga(s) recebida(s) do GOES-19 GLM. ${lightningTimedFeatures.length} com horário válido para animação.`
   :"Nenhuma descarga retornada no período consultado.";
+ if(lightningLoopTimer)stopLightningLoop();
+}
+
+function startLightningLoop(){
+ if(!lightningEnabled){
+  document.getElementById("lightningStatus").textContent="Ative primeiro a camada de raios.";
+  return;
+ }
+ if(lightningLoopTimer)stopLightningLoop();
+ if(lightningTimedFeatures.length<2){
+  document.getElementById("lightningStatus").textContent="Não há pelo menos duas descargas com horário válido para montar o loop.";
+  return;
+ }
+ lightningLoopIndex=0;
+ const start=document.getElementById("lightningLoopStart");
+ const stop=document.getElementById("lightningLoopStop");
+ start.disabled=true;stop.disabled=false;
+ const step=()=>{
+  if(!lightningEnabled||!lightningTimedFeatures.length){stopLightningLoop();return;}
+  const lastTime=lightningTimedFeatures[lightningLoopIndex].timeMs;
+  const visible=lightningTimedFeatures.filter(item=>item.timeMs<=lastTime);
+  drawLightningFeatures(visible);
+  const date=new Date(lastTime);
+  document.getElementById("lightningStatus").textContent=
+   `Loop GOES-19 GLM · ${visible.length}/${lightningTimedFeatures.length} descargas · ${date.toLocaleTimeString("pt-BR")}`;
+  lightningLoopIndex++;
+  if(lightningLoopIndex>=lightningTimedFeatures.length)lightningLoopIndex=0;
+ };
+ step();
+ lightningLoopTimer=setInterval(step,Number(document.getElementById("lightningLoopSpeed").value)||700);
+}
+
+function stopLightningLoop(){
+ if(lightningLoopTimer)clearInterval(lightningLoopTimer);
+ lightningLoopTimer=null;
+ document.getElementById("lightningLoopStart").disabled=false;
+ document.getElementById("lightningLoopStop").disabled=true;
+ if(lightningFeatures.length)drawLightningFeatures(lightningFeatures);
 }
 
 async function refreshLightning(){
@@ -1676,6 +1738,7 @@ function toggleLightning(){
   refreshLightning();
   lightningTimer=setInterval(refreshLightning,60000);
  }else{
+  stopLightningLoop();
   if(lightningTimer)clearInterval(lightningTimer);
   lightningTimer=null;
   if(lightningRequest)lightningRequest.abort();
@@ -1694,6 +1757,9 @@ function toggleLightning(){
 document.getElementById("lightningOpacity").addEventListener("input",event=>{
  const opacity=Number(event.target.value)/100;
  lightningLayers.forEach(layer=>layer.setStyle({opacity,fillOpacity:opacity}));
+});
+document.getElementById("lightningLoopSpeed").addEventListener("change",()=>{
+ if(lightningLoopTimer)startLightningLoop();
 });
 
 // ============================================
