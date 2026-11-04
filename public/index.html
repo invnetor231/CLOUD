@@ -104,6 +104,13 @@ cursor:pointer;
 .product small{display:block;color:var(--muted);font-size:9px;margin-top:4px}
 .dot{width:9px;height:9px;background:#cbd7e5;border-radius:50%}
 .product.active .dot{background:var(--blue);box-shadow:0 0 0 4px #1677ff20}
+.bt-legend{display:none;margin:10px 0 12px;padding:11px;border:1px solid var(--border);border-radius:11px;background:#fbfcff}
+.bt-legend.open{display:block}
+.bt-legend h4{font-size:10px;margin:0 0 8px;color:#29415d}
+.bt-table{width:100%;border-collapse:collapse;font-size:9px}
+.bt-table td{padding:5px 4px;border-bottom:1px solid #edf1f6}
+.bt-swatch{width:27px;height:12px;border-radius:3px;display:inline-block;vertical-align:middle;border:1px solid #0001}
+.bt-note{font-size:8px;line-height:1.5;color:#8293a8;margin-top:8px}
 label{font-size:10px;color:#74859a;font-weight:bold;display:block;margin:12px 0 7px}
 select{width:100%;padding:11px;border:1px solid var(--border);border-radius:9px;background:#f8faff;color:#29415d;font-size:11px}
 input[type=range]{width:100%;accent-color:var(--blue)}
@@ -321,6 +328,15 @@ header{padding:0 12px}
 .forecast-table th{position:sticky;top:0;background:#edf2f8;color:#35465b;z-index:1}
 .forecast-table tr.selected{background:#e5f1ff;font-weight:700}
 .forecast-table td:first-child{text-align:left}
+
+/* Satélite NOAA GOES-19 Band 13: camada raster georreferenciada no Leaflet */
+.satellite-panel{border-left:3px solid #1d78d8}
+.satellite-meta{font-size:10px;line-height:1.6;color:#71839a;margin:7px 0}
+.satellite-controls{display:flex;align-items:center;gap:8px;margin-top:8px}
+.satellite-controls input{flex:1;min-width:0}
+.satellite-state{font-size:10px;line-height:1.5;margin-top:8px;color:#60748b}
+.satellite-state.active{color:#13834b}
+.satellite-stamp{font-size:10px;font-weight:700;margin-top:5px;color:#294c70}
 </style>
 </head>
 
@@ -375,7 +391,30 @@ header{padding:0 12px}
 </div>
 
 <div class="product" data-product="infrared" onclick="selectProduct('infrared')">
-<div><strong>INFRAVERMELHO REALÇADO</strong><small>Satélite · imagem infravermelha colorida</small></div><div class="dot"></div>
+<div><strong>INFRAVERMELHO REALÇADO</strong><small>Satélite · imagem infravermelha da América do Sul</small></div><div class="dot"></div>
+</div>
+
+<div class="product" data-product="brightness" onclick="selectProduct('brightness')">
+<div><strong>TEMPERATURA DE BRILHO (BT)</strong><small>GOES-19 ABI C13 · referência Color Enhanced · 10,3 µm</small></div><div class="dot"></div>
+</div>
+
+<div id="btColorLegend" class="bt-legend" aria-label="Tabela de cores de referência da temperatura de brilho">
+<h4>LEGENDA BT · COLOR ENHANCED</h4>
+<table class="bt-table">
+<tbody>
+<tr><td><span class="bt-swatch" style="background:#282828"></span></td><td>Acima de −10 °C</td><td>Superfície / nuvens quentes</td></tr>
+<tr><td><span class="bt-swatch" style="background:#777777"></span></td><td>−10 a −20 °C</td><td>Topo de nuvem frio</td></tr>
+<tr><td><span class="bt-swatch" style="background:#2457a6"></span></td><td>−20 a −30 °C</td><td>Nuvens frias</td></tr>
+<tr><td><span class="bt-swatch" style="background:#20a9d6"></span></td><td>−30 a −40 °C</td><td>Resfriamento acentuado</td></tr>
+<tr><td><span class="bt-swatch" style="background:#35b86b"></span></td><td>−40 a −50 °C</td><td>Convecção profunda</td></tr>
+<tr><td><span class="bt-swatch" style="background:#d5df35"></span></td><td>−50 a −60 °C</td><td>Topos muito frios</td></tr>
+<tr><td><span class="bt-swatch" style="background:#f39a25"></span></td><td>−60 a −70 °C</td><td>Convecção intensa</td></tr>
+<tr><td><span class="bt-swatch" style="background:#df3434"></span></td><td>−70 a −80 °C</td><td>Topos extremamente frios</td></tr>
+<tr><td><span class="bt-swatch" style="background:#c12b9a"></span></td><td>−80 a −90 °C</td><td>Valores muito baixos</td></tr>
+<tr><td><span class="bt-swatch" style="background:#f5f5f5"></span></td><td>Abaixo de −90 °C</td><td>Extremo da escala</td></tr>
+</tbody>
+</table>
+<div class="bt-note">Escala ilustrativa de referência para o realce Color Enhanced. Os intervalos e cores precisam corresponder à tabela de cores aplicada ao raster BT; a legenda, sozinha, não calibra nem altera os pixels.</div>
 </div>
 
 <div class="info" style="margin:10px 0 12px">Exibindo imagens de todos os radares disponíveis. O ícone 📡 indica a localização de cada estação de radar.</div>
@@ -386,6 +425,8 @@ header{padding:0 12px}
 <button class="primary" style="width:100%;margin-top:12px" onclick="refreshRadar()">ATUALIZAR REFLECTIVIDADE</button>
 <div id="message">Preparando radar...</div>
 </section>
+
+
 
 <section class="panel">
 <h3>MEDIDOR DE DISTÂNCIA</h3>
@@ -422,16 +463,6 @@ Toque em qualquer local do mapa para medir a distância em linha reta a partir d
 <button class="primary" id="lightningToggle" style="width:100%;margin-top:10px" onclick="toggleLightning()">ATIVAR RAIOS E RELÂMPAGOS</button>
 <label>OPACIDADE DOS MARCADORES</label>
 <input type="range" id="lightningOpacity" min="20" max="100" value="100">
-<div style="display:flex;gap:7px;margin-top:9px">
- <button class="secondary" id="lightningLoopStart" type="button" onclick="startLightningLoop()" style="flex:1">▶ INICIAR LOOP</button>
- <button class="secondary" id="lightningLoopStop" type="button" onclick="stopLightningLoop()" style="flex:1" disabled>■ PARAR</button>
-</div>
-<label>VELOCIDADE DO LOOP</label>
-<select id="lightningLoopSpeed" style="width:100%">
- <option value="1200">Lento</option>
- <option value="700" selected>Normal</option>
- <option value="350">Rápido</option>
-</select>
 <div class="lightning-legend">
 <span><i class="lightning-dot" style="background:#25a85a"></i>Baixa</span>
 <span><i class="lightning-dot" style="background:#f4d43b"></i>Moderada</span>
@@ -591,15 +622,17 @@ Toque em qualquer local do mapa para medir a distância em linha reta a partir d
 <button id="menu-07km" onclick="selectProduct('07km');closeEconomyMenu()">REFLECTIVIDADE 7 KM</button>
 <button id="menu-05km" onclick="selectProduct('05km');closeEconomyMenu()">REFLECTIVIDADE 5 KM</button>
 <button id="menu-infrared" onclick="selectProduct('infrared');closeEconomyMenu()">SATÉLITE INFRAVERMELHO REALÇADO</button>
+<button id="menu-brightness" onclick="selectProduct('brightness');closeEconomyMenu()">TEMPERATURA DE BRILHO · GOES-19</button>
 <button id="menu-stsc" onclick="toggleSTSC();closeEconomyMenu()">ATIVAR / DESATIVAR TSC</button>
 <hr style="border:0;border-top:1px solid #e7edf5;margin:10px 0">
 <button class="secondary" onclick="toggleEconomy()">SAIR DO MODO ECONOMIA</button>
 <button class="secondary" onclick="requestLocation()">MINHA LOCALIZAÇÃO</button>
 </div>
 
-<div class="footer">CLOUDGOD · REDEMET/DECEA · GOES-19 GLM · OPENSTREETMAP</div>
+<div class="footer">CLOUDGOD · REDEMET/DECEA · NOAA GOES-19 ABI BAND 13 · GOES-19 GLM · OPENSTREETMAP</div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/esri-leaflet@3.0.15/dist/esri-leaflet.js"></script>
 
 <script>
 // ============================================
@@ -636,10 +669,6 @@ let lightningFeatures=[];
 let lightningLayers=[];
 let lightningRequest=null;
 let lightningLastSignature="";
-let lightningLoopTimer=null;
-let lightningLoopIndex=0;
-let lightningTimedFeatures=[];
-let lightningFlashTimer=null;
 const lightningCanvas=L.canvas({padding:0.5});
 
 // Sistema de Tempo Severo Convectivo (STSC) da REDEMET/DECEA.
@@ -671,6 +700,65 @@ L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
 const radarGroup=L.layerGroup().addTo(map);
 radarStationGroup.addTo(map);
 
+// ============================================
+// GOES-19 ABI BAND 13 · BT CALIBRADA + COLOR ENHANCED
+// O backend lê o produto NOAA ABI-L2-CMIPF-M6C13 (NetCDF),
+// converte CMI para temperatura de brilho em Kelvin e reprojeta
+// a imagem para latitude/longitude antes de servir o PNG.
+// ============================================
+const BT_BACKEND_URL="https://cloudgod-goes19-bt.onrender.com";
+const SOUTH_AMERICA_BOUNDS=[[-56.5,-82.0],[13.5,-32.0]];
+let goes13Layer=null;
+let goes13Enabled=false;
+let goes13RefreshTimer=null;
+let btObjectUrl=null;
+let btRequestId=0;
+function btImageUrl(){
+ return BT_BACKEND_URL.replace(/\/$/,"")+"/bt.png?t="+Date.now();
+}
+function btOpacity(){
+ return (Number(document.getElementById("opacity").value)||90)/100;
+}
+function btShowError(message){
+ goes13Enabled=false;
+ const el=document.getElementById("message");
+ if(el)el.textContent="BT GOES-19 indisponível: "+message;
+}
+function refreshGOES13(){
+ const el=document.getElementById("message");
+ if(el)el.textContent="Carregando raster BT calibrado do backend NOAA GOES-19...";
+ const nextUrl=btImageUrl();
+ if(!goes13Layer){
+  goes13Layer=L.imageOverlay(nextUrl,SOUTH_AMERICA_BOUNDS,{
+   opacity:btOpacity(),interactive:false,
+   // A imagem é carregada pelo próprio elemento <img> do Leaflet.
+   // Isso evita a restrição CORS de fetch()+Blob em hospedagens estáticas.
+   crossOrigin:false
+  });
+  goes13Layer.on("load",()=>{
+   goes13Enabled=true;
+   if(el)el.textContent="BT GOES-19 carregada · ABI C13 · CMI calibrada em Kelvin · Color Enhanced.";
+   if(!goes13RefreshTimer)goes13RefreshTimer=setInterval(()=>{
+    if(currentProduct==="brightness"&&goes13Layer)refreshGOES13();
+   },5*60*1000);
+  });
+  goes13Layer.on("error",async()=>{
+   let detail="o endpoint /bt.png não entregou uma imagem.";
+   try{
+    const response=await fetch(BT_BACKEND_URL.replace(/\/$/,"")+"/bt.json?diag="+Date.now(),{cache:"no-store"});
+    const data=await response.json();
+    if(data&&data.detail)detail+=" Backend: "+data.detail;
+    else if(!response.ok)detail+=" HTTP "+response.status;
+   }catch(err){detail+=" Diagnóstico indisponível: "+(err&&err.message?err.message:String(err));}
+   btShowError(detail);
+  });
+  goes13Layer.addTo(map);
+ }else{
+  goes13Layer.setOpacity(btOpacity());
+  if(!map.hasLayer(goes13Layer))goes13Layer.addTo(map);
+  goes13Layer.setUrl(nextUrl);
+ }
+}
 // ============================================
 // INDICADOR EXPERIMENTAL DE AMBIENTE FAVORÁVEL A TORNADOS
 // Fonte: Open-Meteo GFS. Não representa probabilidade nem alerta oficial.
@@ -831,7 +919,7 @@ async function refreshTornadoRisk(){
   "wind_speed_925hPa","wind_direction_925hPa",
   "wind_speed_500hPa","wind_direction_500hPa"
  ].join(",");
- const url=`/.netlify/functions/weather-proxy?endpoint=gfs&latitude=${encodeURIComponent(latitudes)}&longitude=${encodeURIComponent(longitudes)}&hourly=${encodeURIComponent(hourly)}&forecast_days=2&timezone=auto&wind_speed_unit=kmh`;
+ const url=`${TORNADO_RISK_API}?latitude=${encodeURIComponent(latitudes)}&longitude=${encodeURIComponent(longitudes)}&hourly=${hourly}&forecast_days=2&timezone=auto&wind_speed_unit=kmh`;
  try{
   const response=await fetch(url,{signal:tornadoRiskAbort.signal,cache:"no-store"});
   if(!response.ok)throw new Error(`Open-Meteo HTTP ${response.status}`);
@@ -994,7 +1082,7 @@ async function refreshForecastProduct(kind){
  const lat=points.map(p=>p.lat.toFixed(3)).join(",");
  const lon=points.map(p=>p.lon.toFixed(3)).join(",");
  const vars=kind==="storms"?"cape,showers,weather_code":"precipitation";
- const url=`/.netlify/functions/weather-proxy?endpoint=gfs&latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=${encodeURIComponent(vars)}&forecast_days=2&timezone=auto`;
+ const url=`${TORNADO_RISK_API}?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}&hourly=${vars}&forecast_days=2&timezone=auto`;
  try{
   let response=null;
   let usedFallback=false;
@@ -1007,7 +1095,7 @@ async function refreshForecastProduct(kind){
    primaryError=primary;
    // Segunda rota: API Forecast com o modelo GFS Seamless explicitamente selecionado.
    // Mantém as mesmas coordenadas, variáveis e período solicitados pelo produto.
-   const fallbackUrl=url.replace("endpoint=gfs","endpoint=forecast")+"&models=gfs_seamless";
+   const fallbackUrl=url.replace("https://api.open-meteo.com/v1/gfs?","https://api.open-meteo.com/v1/forecast?")+"&models=gfs_seamless";
    response=await fetch(fallbackUrl,{signal:product.abort.signal,cache:"no-store"});
    if(!response.ok)throw new Error(`GFS indisponível (${primary.message}); rota alternativa HTTP ${response.status}`);
    usedFallback=true;
@@ -1312,23 +1400,32 @@ function closeEconomyMenu(){
 // ============================================
 
 function selectProduct(product){
-
  pauseLoop();
  currentProduct=product;
-
  document.querySelectorAll(".product").forEach(el=>{
   el.classList.toggle("active",el.dataset.product===product);
  });
-
- ["maxcappi","07km","05km","infrared"].forEach(id=>{
+ ["maxcappi","07km","05km","infrared","brightness"].forEach(id=>{
   const button=document.getElementById("menu-"+id);
   if(button)button.classList.toggle("selected",id===product);
  });
-
+ document.getElementById("btColorLegend").classList.toggle("open",product==="brightness");
+ if(product==="brightness"){
+  frames=[];currentFrame=0;
+  document.getElementById("subtitle").textContent="GOES-19 ABI C13 · LEGENDA COLOR ENHANCED";
+  document.querySelector(".loop h3").textContent="SATÉLITE · TEMPERATURA DE BRILHO (BT)";
+  document.getElementById("message").textContent="Produto BT selecionado · escala Color Enhanced de referência. A imagem depende de uma fonte BT calibrada conectada.";
+  map.fitBounds(SOUTH_AMERICA_BOUNDS,{padding:[10,10],maxZoom:4});
+  refreshGOES13();
+  return;
+ }
+ if(goes13Layer&&map.hasLayer(goes13Layer))map.removeLayer(goes13Layer);
+ goes13Enabled=false;
+ clearInterval(goes13RefreshTimer);goes13RefreshTimer=null;
  document.getElementById("subtitle").textContent=
-  product==="infrared" ? "SATÉLITE REDEMET · INFRAVERMELHO REALÇADO" : "REDEMET · RADAR "+product.toUpperCase();
+  product==="infrared" ? "SATÉLITE REDEMET · INFRAVERMELHO REALÇADO · AMÉRICA DO SUL" : "REDEMET · RADAR "+product.toUpperCase();
  document.querySelector(".loop h3").textContent=product==="infrared"?"ANIMAÇÃO TEMPORAL · SATÉLITE INFRAVERMELHO REALÇADO":"ANIMAÇÃO TEMPORAL · RADAR";
-
+ if(product==="infrared")map.fitBounds(SOUTH_AMERICA_BOUNDS,{padding:[10,10],maxZoom:4});
  refreshRadar();
 }
 
@@ -1562,6 +1659,7 @@ document.getElementById("timeline").addEventListener("input",event=>{
 document.getElementById("opacity").addEventListener("input",event=>{
  const opacity=Number(event.target.value)/100;
  radarLayers.forEach(layer=>layer.setOpacity(opacity));
+ if(goes13Layer&&currentProduct==="brightness")goes13Layer.setOpacity(opacity);
 });
 document.getElementById("speed").addEventListener("change",()=>{
  if(loopTimer) startLoop();
@@ -1606,52 +1704,13 @@ function lightningQuantile(sorted,ratio){
  return sorted[Math.min(sorted.length-1,Math.floor((sorted.length-1)*ratio))];
 }
 
-function lightningTimeMs(feature){
- const p=feature?.properties||feature||{};
- const raw=p.time??p.timestamp??p.flash_time??p.datetime??p.observation_time;
- if(raw===undefined||raw===null||raw==="")return null;
- if(typeof raw==="number"||/^\d+(\.\d+)?$/.test(String(raw))){
-  const n=Number(raw);
-  if(!Number.isFinite(n))return null;
-  return n<1e12?n*1000:n;
- }
- const parsed=Date.parse(raw);
- return Number.isFinite(parsed)?parsed:null;
-}
-
-function drawLightningFeatures(items){
- const energies=items.map(item=>item.energy).filter(value=>value!==null).sort((a,b)=>a-b);
- const limits={
-  low:lightningQuantile(energies,.25),
-  medium:lightningQuantile(energies,.50),
-  high:lightningQuantile(energies,.75)
- };
- const opacity=Number(document.getElementById("lightningOpacity").value)/100;
- lightningGroup.clearLayers();
- lightningLayers=[];
- for(const item of items){
-  const color=lightningColor(item.energy,limits);
-  const marker=L.circleMarker([item.point.lat,item.point.lon],{
-   renderer:lightningCanvas,radius:5,color,weight:1,opacity,
-   fillColor:color,fillOpacity:opacity,bubblingMouseEvents:false
-  });
-  const energyText=item.energy===null?"Energia não informada":`Energia GLM: ${item.energy.toExponential(2)} J`;
-  const props=item.feature?.properties||{};
-  const time=props.time??props.timestamp??props.flash_time??"Horário não informado";
-  marker.bindPopup(`<b>Descarga elétrica detectada</b><br>${energyText}<br>${time}`);
-  marker.addTo(lightningGroup);
-  lightningLayers.push(marker);
- }
- lightningFeatures=items;
-}
-
 function renderLightning(data){
  const features=Array.isArray(data)?data:(data?.features||data?.data||[]);
  const valid=[];
  for(const feature of features){
   const point=lightningCoordinates(feature);
   if(Number.isFinite(point.lat)&&Number.isFinite(point.lon)&&Math.abs(point.lat)<=90&&Math.abs(point.lon)<=180){
-   valid.push({feature,point,energy:lightningEnergy(feature),timeMs:lightningTimeMs(feature)});
+   valid.push({feature,point,energy:lightningEnergy(feature)});
   }
  }
  const signature=valid.map(item=>{
@@ -1660,73 +1719,40 @@ function renderLightning(data){
  }).join("|");
  if(signature===lightningLastSignature)return;
  lightningLastSignature=signature;
- lightningTimedFeatures=valid.filter(item=>item.timeMs!==null).sort((a,b)=>a.timeMs-b.timeMs);
- drawLightningFeatures(valid);
- const status=document.getElementById("lightningStatus");
- status.textContent=valid.length
-  ?`${valid.length} descarga(s) recebida(s) do GOES-19 GLM. ${lightningTimedFeatures.length} com horário válido para animação.`
-  :"Nenhuma descarga retornada no período consultado.";
- if(lightningLoopTimer)stopLightningLoop();
-}
 
-function showLightningFlash(item){
- // Pulso breve no ponto da descarga, sem manter uma trilha de raios antigos.
- const color=lightningColor(item.energy,{low:1,medium:2,high:3});
- const latlng=[item.point.lat,item.point.lon];
- const flash=L.circleMarker(latlng,{
-  renderer:lightningCanvas,radius:8,color:"#ffffff",weight:2,
-  opacity:1,fillColor:color,fillOpacity:1,bubblingMouseEvents:false
- }).addTo(lightningGroup);
- const halo=L.circleMarker(latlng,{
-  renderer:lightningCanvas,radius:15,color:color,weight:2,
-  opacity:.9,fillOpacity:0,bubblingMouseEvents:false
- }).addTo(lightningGroup);
- const props=item.feature?.properties||{};
- const stamp=props.time??props.timestamp??props.flash_time??"Horário não informado";
- const energy=item.energy===null?"Energia não informada":`Energia GLM: ${item.energy.toExponential(2)} J`;
- flash.bindPopup(`<b>Descarga elétrica GOES-19 GLM</b><br>${energy}<br>${stamp}`);
- setTimeout(()=>{
-  if(lightningGroup.hasLayer(flash))lightningGroup.removeLayer(flash);
-  if(lightningGroup.hasLayer(halo))lightningGroup.removeLayer(halo);
- },280);
-}
-
-function startLightningLoop(){
- if(!lightningEnabled){
-  document.getElementById("lightningStatus").textContent="Ative primeiro a camada de raios.";
-  return;
- }
- if(lightningLoopTimer)stopLightningLoop();
- if(lightningTimedFeatures.length<1){
-  document.getElementById("lightningStatus").textContent="Não há descargas com horário válido do GOES-19 GLM para animar.";
-  return;
- }
- lightningGroup.clearLayers();
- lightningLoopIndex=0;
- const start=document.getElementById("lightningLoopStart");
- const stop=document.getElementById("lightningLoopStop");
- start.disabled=true;stop.disabled=false;
- const step=()=>{
-  if(!lightningEnabled||!lightningTimedFeatures.length){stopLightningLoop();return;}
-  const item=lightningTimedFeatures[lightningLoopIndex];
-  showLightningFlash(item);
-  const date=new Date(item.timeMs);
-  document.getElementById("lightningStatus").textContent=
-   `GOES-19 GLM · descarga ${lightningLoopIndex+1}/${lightningTimedFeatures.length} · ${date.toLocaleTimeString("pt-BR",{hour12:false})}.${String(date.getMilliseconds()).padStart(3,"0")} · pulso temporário`;
-  lightningLoopIndex++;
-  if(lightningLoopIndex>=lightningTimedFeatures.length)lightningLoopIndex=0;
-  const delay=Math.max(100,Number(document.getElementById("lightningLoopSpeed").value)||700);
-  lightningLoopTimer=setTimeout(step,delay);
+ const energies=valid.map(item=>item.energy).filter(value=>value!==null).sort((a,b)=>a-b);
+ const limits={
+  low:lightningQuantile(energies,.25),
+  medium:lightningQuantile(energies,.50),
+  high:lightningQuantile(energies,.75)
  };
- step();
-}
-function stopLightningLoop(){
- if(lightningLoopTimer)clearTimeout(lightningLoopTimer);
- lightningLoopTimer=null;
+ const opacity=Number(document.getElementById("lightningOpacity").value)/100;
+
  lightningGroup.clearLayers();
- document.getElementById("lightningLoopStart").disabled=false;
- document.getElementById("lightningLoopStop").disabled=true;
- if(lightningFeatures.length)drawLightningFeatures(lightningFeatures);
+ lightningLayers=[];
+ for(const item of valid){
+  const color=lightningColor(item.energy,limits);
+  const marker=L.circleMarker([item.point.lat,item.point.lon],{
+   renderer:lightningCanvas,
+   radius:5,
+   color,
+   weight:1,
+   opacity,
+   fillColor:color,
+   fillOpacity:opacity,
+   bubblingMouseEvents:false
+  });
+  const energyText=item.energy===null?"Energia não informada":`Energia GLM: ${item.energy.toExponential(2)} J`;
+  const props=item.feature?.properties||{};
+  const time=props.time??props.timestamp??"Horário não informado";
+  marker.bindPopup(`<b>Descarga elétrica detectada</b><br>${energyText}<br>${time}`);
+  marker.addTo(lightningGroup);
+  lightningLayers.push(marker);
+ }
+ lightningFeatures=valid;
+ document.getElementById("lightningStatus").textContent=valid.length
+  ?`${valid.length} descarga(s) recebida(s) do GOES-19 GLM. Cores indicam energia relativa entre as descargas do conjunto.`
+  :"Nenhuma descarga retornada no período consultado.";
 }
 
 async function refreshLightning(){
@@ -1762,7 +1788,6 @@ function toggleLightning(){
   refreshLightning();
   lightningTimer=setInterval(refreshLightning,60000);
  }else{
-  stopLightningLoop();
   if(lightningTimer)clearInterval(lightningTimer);
   lightningTimer=null;
   if(lightningRequest)lightningRequest.abort();
@@ -1781,9 +1806,6 @@ function toggleLightning(){
 document.getElementById("lightningOpacity").addEventListener("input",event=>{
  const opacity=Number(event.target.value)/100;
  lightningLayers.forEach(layer=>layer.setStyle({opacity,fillOpacity:opacity}));
-});
-document.getElementById("lightningLoopSpeed").addEventListener("change",()=>{
- if(lightningLoopTimer)startLightningLoop();
 });
 
 // ============================================
